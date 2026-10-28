@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>끼리끼리</title>
+<style>
+:root{--y:#FEF08A;--ink:#1E293B;--g:#FFD700}
+*{box-sizing:border-box}
+body{margin:0;background:var(--y);color:var(--ink);font-family:Arial,'Malgun Gothic',sans-serif}
+.wrap{max-width:760px;margin:auto;padding:14px}
+.card,.post{background:white;border:2px solid var(--ink);border-radius:12px;padding:14px;margin:12px 0;box-shadow:1px 3px 0 var(--ink)}
+#allScreen .post{background:#e3ffe7}
+.post-shell{margin:12px 0}.post.post-paper{background:#fff7da;margin:0 0 8px}
+.post-tools,.post-comments,.post-reply{margin:6px 0 0}.post-tools button,.post-comments button{vertical-align:middle}
+.post-comments{padding:0 8px}.post-reply input{background:white}
+h1{margin:4px 0}small,.muted{color:#64748b}
+input,textarea{font:inherit;border:2px solid var(--ink);border-radius:7px;padding:9px;width:100%;margin:4px 0}
+button{font:inherit;font-weight:bold;background:var(--g);color:var(--ink);border:2px solid var(--ink);border-radius:7px;padding:8px 10px;margin:3px;cursor:pointer}
+button:disabled{opacity:.4}button[data-ice]{background:#B9E7FF}button[data-ice]:disabled{opacity:1;background:#B9E7FF;cursor:not-allowed}
+.row{display:flex;gap:6px;align-items:center}.row>*{flex:1;min-width:0}
+.symbols{display:grid;grid-template-columns:repeat(10,1fr);gap:3px}
+.symbols button{padding:8px 0;background:#F5F5DC;margin:0}
+.text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
+.tag{display:inline-block;background:#fff4b8;border:1px solid;border-radius:16px;padding:3px 7px;margin:3px}
+.comment{border-top:1px solid #ddd;padding:8px 0}.hide{display:none!important}
+.post-content img{display:block;max-width:100%;max-height:400px;object-fit:contain;margin:10px auto;border-radius:7px}
+.status{white-space:pre-wrap;margin-top:8px}
+@media(max-width:480px){.wrap{padding:8px}.card,.post{padding:10px}.symbols{grid-template-columns:repeat(8,1fr)}}
+</style>
+</head>
+<body>
+<main class="wrap">
+<h1>끼리끼리 <small>KKiRiKKiRi</small></h1>
+<p class="muted">가볍게 나누는 이야기 · 글과 링크 중심</p>
+
+<section class="card" id="authCard">
+<h3 id="authTitle">아이디 로그인</h3>
+<div id="loginIdField">
+<label><small>아이디</small></label><input id="loginId" maxlength="10" autocomplete="username" placeholder="아이디">
+</div>
+<div id="signupFields" class="hide">
+<label><small>아이디 (한글·영문 시작, 5~10자)</small></label><input id="newId" maxlength="10" autocomplete="username" placeholder="아이디">
+<label><small>닉네임 (선택, 3~5자)</small></label><input id="newNick" maxlength="5" placeholder="닉네임 (선택)">
+</div>
+<div id="emailField" class="hide"><label><small>이메일 (회원가입용)</small></label><input id="email" type="email" autocomplete="email" placeholder="이메일 주소"></div>
+<label><small>비밀번호</small></label><input id="password" type="password" autocomplete="current-password" placeholder="비밀번호">
+<div class="row"><button id="authSubmit">로그인</button><button id="resetPassword">비밀번호 재설정</button><button id="signupMode">회원가입</button></div>
+<p id="authStatus" class="muted">아이디와 비밀번호로 로그인하세요.</p>
+</section>
+
+<section class="card hide" id="accountCard">
+<h3>내 계정</h3><div id="accountInfo"></div>
+<div class="row"><button id="showProfile">아이디·닉네임 변경</button><button id="logout" style="background:#FFD700">로그아웃</button></div>
+<div id="profileEditor" class="hide">
+<label><small>아이디 변경 (30일에 한 번)</small></label><input id="changeId" maxlength="10">
+<label><small>닉네임 변경 (24시간에 한 번, 비우면 해제)</small></label><input id="changeNick" maxlength="5">
+<div class="row"><button id="saveProfile">변경 저장</button><button id="cancelProfile">취소</button></div>
+</div>
+</section>
+
+<section class="card hide" id="compose">
+<h3 id="composeTitle">새 끼리 <small id="count">0 / 200자</small></h3>
+<textarea id="postText" maxlength="200" rows="5" placeholder="끼리를 작성하세요. (최대 200자)"></textarea>
+<div class="row"><small>사진 첨부 없음 · 글과 링크만</small></div>
+<div id="symbols" class="symbols"></div>
+<div class="row"><button id="publish">끼리 올리기</button><button id="cancelEdit" class="hide">수정 취소</button></div>
+<p id="postStatus" class="muted"></p>
+</section>
+
+<section class="card hide" id="searchScreen">
+<h3>검색</h3><div class="row"><input id="search" placeholder="#해시태그 또는 사용자 검색"><button id="searchbtn">검색</button><button id="clearSearch">전체 글</button></div>
+<div id="searchResults" class="hide"><hr style="border:0;border-top:1px solid #e2e8f0;margin:14px 0"><h3 id="searchResultTitle">검색 결과</h3><div id="searchFeed"></div></div>
+</section>
+
+<section class="card hide" id="mineScreen">
+<h3 id="resultTitle">내 끼리</h3><div id="mineTools" class="hide"><button id="select">선택 삭제</button><button id="delall">전체 삭제</button></div><div id="feed"><p class="muted">내 끼리가 아직 없습니다.</p></div>
+</section>
+
+<section class="card hide" id="allScreen"><h3>전체 끼리</h3><div id="allFeed"></div></section>
+</main>
+
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
+import{getAuth,createUserWithEmailAndPassword,signInWithCustomToken,signOut,onAuthStateChanged,sendPasswordResetEmail}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+import{getFunctions,httpsCallable}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js";
+import{getFirestore,doc,getDoc,updateDoc,deleteDoc,collection,addDoc,query,orderBy,onSnapshot,serverTimestamp,runTransaction,getDocs,writeBatch}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
+const app=initializeApp({apiKey:"AIzaSyBiV_4mm2TbcC4bJsLkJpcXiUztGFYBL0",authDomain:"kkiri-kkiri-sns.firebaseapp.com",projectId:"kkiri-kkiri-sns",storageBucket:"kkiri-kkiri-sns.firebasestorage.app",messagingSenderId:"739393951571",appId:"1:739393951571:web:7c601229be7c13d1e7b3a6"});
+const auth=getAuth(app),db=getFirestore(app),functions=getFunctions(app,"asia-northeast3"),loginById=httpsCallable(functions,"signInWithId"),resetById=httpsCallable(functions,"sendPasswordResetById"),$=id=>document.getElementById(id);
+const ID=/^[가-힣A-Za-z][가-힣A-Za-z0-9]{4,9}$/,NICK=/^[가-힣A-Za-z\u00C0-\u024F\u1E00-\u1EFF]{3,5}$/u;
+let mode="login",me=null,profile=null,posts=[],unsubPosts=null,unsubComments=new Map(),comments=new Map(),editing=null,selectMode=false,profiles=new Map();
+const norm=s=>s.trim().toLocaleLowerCase("ko-KR"),say=(id,s)=>{$(id).textContent=s;$(id).classList.remove("hide")};
+function err(e){const m={"auth/email-already-in-use":"이미 가입된 이메일입니다.","auth/invalid-email":"이메일 형식을 확인하세요.","auth/weak-password":"비밀번호를 더 길게 설정하세요.","auth/invalid-credential":"아이디 또는 비밀번호를 확인하세요.","auth/too-many-requests":"인증 요청이 일시 제한됐습니다. 잠시 기다린 뒤 다시 시도하세요.","permission-denied":"Firestore 보안 규칙을 확인하세요.","functions/not-found":"아이디 로그인 서버 기능을 배포해야 합니다.","functions/unauthenticated":"아이디 또는 비밀번호를 확인하세요.","functions/invalid-argument":"아이디 형식을 확인하세요."};return m[e.code]||e.message||"오류가 발생했습니다."}
+function setMode(m){mode=m;const signup=m==="signup";$("signupFields").classList.toggle("hide",!signup);$("emailField").classList.toggle("hide",!signup);$("loginIdField").classList.toggle("hide",signup);$("authTitle").textContent=signup?"회원가입":"아이디 로그인";$("authSubmit").textContent=signup?"가입하기":"로그인";$("signupMode").textContent=signup?"로그인으로 돌아가기":"회원가입";$("password").autocomplete=signup?"new-password":"current-password"}
+$("signupMode").onclick=()=>setMode(mode==="signup"?"login":"signup");
+$("resetPassword").onclick=async()=>{try{const id=$("loginId").value.trim();if(!id)throw Error("아이디를 먼저 입력하세요.");await resetById({id});say("authStatus","가입한 이메일로 비밀번호 재설정 메일을 보냈습니다. 가입 여부와 관계없이 같은 안내가 표시될 수 있습니다.")}catch(e){say("authStatus",err(e))}};
+$("authSubmit").onclick=async()=>{try{$("authSubmit").disabled=true;const password=$("password").value;if(!password)throw Error("비밀번호를 입력하세요.");if(mode==="login"){const id=$("loginId").value.trim();if(!id)throw Error("아이디를 입력하세요.");const result=await loginById({id,password});await signInWithCustomToken(auth,result.data.customToken);return}
+const email=$("email").value.trim();if(!email)throw Error("이메일을 입력하세요.");const id=$("newId").value.trim(),nick=$("newNick").value.trim();if(!ID.test(id))throw Error("아이디는 한글·영문으로 시작하는 5~10자여야 합니다.");if(nick&&!NICK.test(nick))throw Error("닉네임은 한글·영문 3~5자로 입력하세요.");
+const c=await createUserWithEmailAndPassword(auth,email,password);
+try{await runTransaction(db,async t=>{const ur=doc(db,"users",c.user.uid),ir=doc(db,"idClaims",norm(id)),is=await t.get(ir);if(is.exists())throw Error("이미 사용 중인 아이디입니다.");let nr,ns;if(nick){nr=doc(db,"nickClaims",norm(nick));ns=await t.get(nr);if(ns.exists())throw Error("이미 사용 중인 닉네임입니다.");}t.set(ur,{id,nick,email,createdAt:serverTimestamp(),lastIdChangeAt:null,lastNickChangeAt:null});t.set(ir,{uid:c.user.uid});if(nr)t.set(nr,{uid:c.user.uid})})}catch(e){await c.user.delete().catch(()=>{});throw e}
+}catch(e){say("authStatus",err(e))}finally{$("authSubmit").disabled=false}};
+$("logout").onclick=async()=>{try{await signOut(auth)}catch(e){alert(err(e))}};
+$("showProfile").onclick=()=>{$("profileEditor").classList.toggle("hide");$("changeId").value=profile?.id||"";$("changeNick").value=profile?.nick||""};
+$("cancelProfile").onclick=()=> $("profileEditor").classList.add("hide");
+$("saveProfile").onclick=async()=>{try{const id=$("changeId").value.trim(),nick=$("changeNick").value.trim();if(!ID.test(id))throw Error("아이디는 한글·영문으로 시작하는 5~10자여야 합니다.");if(nick&&!NICK.test(nick))throw Error("닉네임은 한글·영문 3~5자로 입력하세요.");
+await runTransaction(db,async t=>{const ur=doc(db,"users",me.uid),us=await t.get(ur);if(!us.exists())throw Error("프로필이 없습니다.");const old=us.data(),ic=doc(db,"idClaims",norm(id)),icSnap=await t.get(ic);let nc,ns;if(nick){nc=doc(db,"nickClaims",norm(nick));ns=await t.get(nc)}
+if(id!==old.id&&icSnap.exists()&&icSnap.data().uid!==me.uid)throw Error("이미 사용 중인 아이디입니다.");if(nick&&ns?.exists()&&ns.data().uid!==me.uid)throw Error("이미 사용 중인 닉네임입니다.");
+const now=Date.now();if(id!==old.id&&old.lastIdChangeAt&&now-old.lastIdChangeAt.toMillis()<30*86400000)throw Error("아이디 변경 후 30일이 지나야 합니다.");if(nick!==(old.nick||"")&&old.lastNickChangeAt&&now-old.lastNickChangeAt.toMillis()<86400000)throw Error("닉네임 변경 후 24시간이 지나야 합니다.");
+if(id!==old.id){t.delete(doc(db,"idClaims",norm(old.id)));t.set(ic,{uid:me.uid})}if(nick!==(old.nick||"")){if(old.nick)t.delete(doc(db,"nickClaims",norm(old.nick)));if(nick)t.set(nc,{uid:me.uid})}
+t.update(ur,{id,nick,lastIdChangeAt:id!==old.id?serverTimestamp():old.lastIdChangeAt,lastNickChangeAt:nick!==(old.nick||"")?serverTimestamp():old.lastNickChangeAt})});
+$("profileEditor").classList.add("hide");await loadProfile();renderAll()}catch(e){alert(err(e))}};
+async function loadProfile(){const s=await getDoc(doc(db,"users",me.uid));profile=s.exists()?s.data():null}
+onAuthStateChanged(auth,async u=>{me=u;if(unsubPosts)unsubPosts();unsubComments.forEach(f=>f());unsubComments.clear();comments.clear();profile=null;posts=[];["accountCard","compose","searchScreen","mineScreen","allScreen"].forEach(id=>$(id).classList.toggle("hide",!u));$("authCard").classList.toggle("hide",!!u);if(!u){renderAll();return}try{await loadProfile();if(!profile)throw Error("프로필을 찾을 수 없습니다.");unsubPosts=onSnapshot(query(collection(db,"posts"),orderBy("createdAt","desc")),snap=>{posts=snap.docs.map(d=>({id:d.id,...d.data()}));syncCommentListeners();renderAll()},e=>say("authStatus",err(e)));renderAll()}catch(e){say("authStatus",err(e))}});
+function syncCommentListeners(){const ids=new Set(posts.map(p=>p.id));for(const [id,fn]of unsubComments)if(!ids.has(id)){fn();unsubComments.delete(id);comments.delete(id)}for(const id of ids)if(!unsubComments.has(id)){unsubComments.set(id,onSnapshot(query(collection(db,"posts",id,"comments"),orderBy("createdAt","asc")),s=>{comments.set(id,s.docs.map(d=>({id:d.id,...d.data()})));renderAll()},()=>{}))}}
+function name(uid){if(uid===me?.uid)return profile?.nick||profile?.id||"나";return profiles.get(uid)?.nick||profiles.get(uid)?.id||"사용자"}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function link(s){return esc(s).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>').replace(/(^|\s)(#[가-힣A-Za-z0-9_]+)/g,'$1<span class="tag">$2</span>')}
+function millis(v){return v?.toMillis?v.toMillis():0}function time(v){return millis(v)?v.toDate().toLocaleString("ko-KR"):"방금"}function editable(v){return millis(v)>0&&Date.now()-millis(v)<3600000}
+function card(p,controls=true){const mine=p.authorUid===me?.uid,cs=comments.get(p.id)||[];return `<div class="post-shell"><section class="post post-paper">${selectMode&&mine?`<input type="checkbox" class="pick" data-id="${p.id}" style="width:auto">`:''}<b>${esc(name(p.authorUid))}</b> <small>${time(p.createdAt)}${p.iced?" · 댓글 얼음":""}${p.perma?" · 영구 얼음":""}</small><div class="text post-content">${link(p.text)}</div><div>${(p.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div></section>${controls?`<div class="post-tools">${mine?`<button data-act="edit" data-id="${p.id}" ${editable(p.createdAt)?"":"disabled"}>수정</button><button data-act="delete" data-id="${p.id}">삭제</button><button data-act="ice" data-id="${p.id}" data-ice ${p.perma?"disabled":""}>${p.perma?"영구 얼음":p.iced?"얼음 해제":"댓글 얼음"}</button>`:""}<button data-act="toggleComments" data-id="${p.id}">댓글 ${cs.length}</button></div><div class="post-comments">${cs.map(c=>`<div class="comment"><b>${esc(name(c.authorUid))}</b> <small>${time(c.createdAt)}</small><div class="text">${link(c.text)}</div>${c.authorUid===me?.uid?`<button data-act="editc" data-id="${p.id}" data-cid="${c.id}" ${editable(c.createdAt)?"":"disabled"}>수정</button><button data-act="delc" data-id="${p.id}" data-cid="${c.id}">삭제</button>`:""}</div>`).join("")}</div>${!p.iced&&!p.perma?`<div class="row post-reply"><input maxlength="200" placeholder="댓글 작성" data-input="${p.id}"><button data-act="comment" data-id="${p.id}">등록</button></div>`:"<small>댓글이 잠겨 있습니다.</small>"}`:""}</div>`}
+async function renderAll(){if(!me||!profile)return;const uids=[...new Set(posts.map(p=>p.authorUid))].filter(uid=>uid!==me.uid);await Promise.all(uids.map(async uid=>{if(!profiles.has(uid)){try{const s=await getDoc(doc(db,"users",uid));if(s.exists())profiles.set(uid,s.data())}catch{}}}));$("accountInfo").innerHTML=`<b>${esc(profile.nick||profile.id)}</b>`;const mine=posts.filter(p=>p.authorUid===me.uid);$("feed").innerHTML=mine.map(p=>card(p)).join("")||'<p class="muted">내 끼리가 아직 없습니다. 위에서 끼리를 작성해 보세요.</p>';$("mineTools").classList.toggle("hide",!mine.length);$("allFeed").innerHTML=posts.map(p=>card(p)).join("")||'<p class="muted">아직 끼리가 없습니다.</p>';doSearch()}
+const syms=[",",".","…","!","?","~",":",";","<",">","-","_","@","#","&","%","/","\\","(",")","*","[","]","{","}","+","−","×","÷","="];syms.forEach((s,i)=>{const b=document.createElement("button");b.type="button";b.textContent=s;b.onclick=()=>{const t=$("postText"),a=t.selectionStart,z=t.selectionEnd;t.setRangeText(s,a,z,"end");t.dispatchEvent(new Event("input"));t.focus()};$("symbols").append(b)});
+$("postText").oninput=()=>$("count").textContent=`${$("postText").value.length} / 200자`;
+$("publish").onclick=async()=>{try{const text=$("postText").value.trim();if(!text||text.length>200)throw Error("글은 1~200자여야 합니다.");const tags=[...new Set([...text.matchAll(/#[가-힣A-Za-z0-9_]+/g)].map(m=>m[0]))];if(editing){const p=posts.find(p=>p.id===editing);if(!p||p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("글 수정은 작성 후 1시간 이내만 가능합니다.");await updateDoc(doc(db,"posts",editing),{text,tags,updatedAt:serverTimestamp()});editing=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide")}else await addDoc(collection(db,"posts"),{authorUid:me.uid,text,tags,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),iced:false,ice:0,perma:false});$("postText").value="";$("count").textContent="0 / 200자";$("postStatus").textContent=""}catch(e){say("postStatus",err(e))}};
+$("cancelEdit").onclick=()=>{editing=null;$("postText").value="";$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide");$("count").textContent="0 / 200자"};
+function doSearch(){const q=norm($("search").value||"");const found=posts.filter(p=>{const who=profiles.get(p.authorUid)||{};return !q||`${p.text} ${(p.tags||[]).join(" ")} ${who.id||""} ${who.nick||""}`.toLocaleLowerCase("ko-KR").includes(q)});$("searchResults").classList.toggle("hide",!q);$("searchFeed").innerHTML=q?(found.map(p=>card(p,false)).join("")||'<p class="muted">검색 결과가 없습니다.</p>'):""}
+$("searchbtn").onclick=doSearch;$("search").onkeydown=e=>{if(e.key==="Enter")doSearch()};$("clearSearch").onclick=()=>{$("search").value="";doSearch()};
+$("select").onclick=()=>{selectMode=!selectMode;$("select").textContent=selectMode?"선택 삭제 실행":"선택 삭제";if(selectMode){renderAll();return}const ids=[...document.querySelectorAll(".pick:checked")].map(x=>x.dataset.id);if(ids.length&&confirm(`${ids.length}개 글을 삭제할까요?`))Promise.all(ids.map(id=>{const p=posts.find(p=>p.id===id);return p?.authorUid===me.uid?deleteDoc(doc(db,"posts",id)):Promise.resolve()}));renderAll()};
+$("delall").onclick=async()=>{const mine=posts.filter(p=>p.authorUid===me.uid);if(!mine.length)return alert("삭제할 글이 없습니다.");if(confirm(`내 끼리 ${mine.length}개를 모두 삭제할까요?`))for(const p of mine)await deleteDoc(doc(db,"posts",p.id))};
+document.addEventListener("click",async e=>{const b=e.target.closest("button[data-act]");if(!b)return;const {act,id,cid}=b.dataset,p=posts.find(p=>p.id===id);if(!p)return;try{
+if(act==="edit"){if(p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("수정 시간이 지났습니다.");editing=id;$("postText").value=p.text;$("count").textContent=`${p.text.length} / 200자`;$("composeTitle").innerHTML='끼리 수정 <small id="count">'+p.text.length+' / 200자</small>';$("publish").textContent="수정 저장";$("cancelEdit").classList.remove("hide");$("postText").focus();$("compose").scrollIntoView({behavior:"smooth"})}
+if(act==="delete"&&p.authorUid===me.uid&&confirm("이 끼리를 삭제할까요?"))await deleteDoc(doc(db,"posts",id));
+if(act==="ice"&&p.authorUid===me.uid){const n=(p.ice||0)+1;await updateDoc(doc(db,"posts",id),{ice:n,iced:n>=3?true:!p.iced,perma:n>=3?true:!!p.perma,updatedAt:serverTimestamp()})}
+if(act==="comment"){if(p.iced||p.perma)throw Error("댓글이 잠겨 있습니다.");const input=document.querySelector(`[data-input="${id}"]`),text=input?.value.trim();if(!text||text.length>200)throw Error("댓글은 1~200자여야 합니다.");await addDoc(collection(db,"posts",id,"comments"),{authorUid:me.uid,text,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});input.value=""}
+if(act==="editc"){const c=(comments.get(id)||[]).find(c=>c.id===cid);if(!c||c.authorUid!==me.uid)throw Error("본인 댓글만 수정할 수 있습니다.");if(!editable(c.createdAt))throw Error("댓글 수정 시간이 지났습니다.");const text=prompt("댓글 수정",c.text);if(text===null)return;if(!text.trim()||text.trim().length>200)throw Error("댓글은 1~200자여야 합니다.");await updateDoc(doc(db,"posts",id,"comments",cid),{text:text.trim(),updatedAt:serverTimestamp()})}
+if(act==="delc"){const c=(comments.get(id)||[]).find(c=>c.id===cid);if(!c||c.authorUid!==me.uid)throw Error("본인 댓글만 삭제할 수 있습니다.");if(confirm("댓글을 삭제할까요?"))await deleteDoc(doc(db,"posts",id,"comments",cid))}
+}catch(e){alert(err(e))}});
+</script></body></html>
