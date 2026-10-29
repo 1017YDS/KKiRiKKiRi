@@ -178,7 +178,47 @@ function link(s){return esc(s).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" tar
 function millis(v){return v?.toMillis?v.toMillis():0}function time(v){return millis(v)?v.toDate().toLocaleString("ko-KR",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}):"방금"}function editable(v){return millis(v)>0&&Date.now()-millis(v)<3600000}
 function card(p,controls=true){const mine=p.authorUid===me?.uid,cs=comments.get(p.id)||[];return `<div class="post-shell"><section class="post post-paper">${selectMode&&mine?`<input type="checkbox" class="pick" data-id="${p.id}" style="width:auto">`:''}<b>${esc(name(p.authorUid))}</b> <small>${time(p.createdAt)}${p.iced?" · 댓글 얼음":""}${p.perma?" · 영구 얼음":""}</small><div class="text post-content">${link(p.text)}</div><div>${(p.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div></section>${controls?`<div class="post-tools">${mine?`<button data-act="edit" data-id="${p.id}" ${editable(p.createdAt)?"":"disabled"}>수정</button><button data-act="delete" data-id="${p.id}">삭제</button><button data-act="ice" data-id="${p.id}" data-ice ${p.perma?"disabled":""}>${p.perma?"영구 얼음":p.iced?"얼음 해제":"댓글 얼음"}</button>`:""}<button data-act="toggleComments" data-id="${p.id}">댓글 ${cs.length}</button></div><div class="post-comments">${cs.map(c=>`<div class="comment"><b>${esc(name(c.authorUid))}</b> <small>${time(c.createdAt)}</small><div class="text">${link(c.text)}</div>${c.authorUid===me?.uid?`<button data-act="editc" data-id="${p.id}" data-cid="${c.id}" ${editable(c.createdAt)?"":"disabled"}>수정</button><button data-act="delc" data-id="${p.id}" data-cid="${c.id}">삭제</button>`:""}</div>`).join("")}</div>${!p.iced&&!p.perma?`<div class="row post-reply"><input maxlength="200" placeholder="댓글 작성" data-input="${p.id}"><button data-act="comment" data-id="${p.id}">등록</button></div>`:"<small>댓글이 잠겨 있습니다.</small>"}`:""}</div>`}
 async function renderAll(){if(!me||!profile)return;const commentUids=[...comments.values()].flat().map(c=>c.authorUid);const uids=[...new Set([...posts.map(p=>p.authorUid),...commentUids])].filter(uid=>uid&&uid!==me.uid);await Promise.all(uids.map(async uid=>{if(!profiles.has(uid)){try{const s=await getDoc(doc(db,"users",uid));if(s.exists())profiles.set(uid,s.data())}catch{}}}));$("accountInfo").innerHTML=`<b>${esc(profile.nick||profile.id)}</b>`;const mine=posts.filter(p=>p.authorUid===me.uid);$("feed").innerHTML=mine.map(p=>card(p)).join("")||'<p class="muted">내 끼리가 아직 없습니다. 위에서 끼리를 작성해 보세요.</p>';$("mineTools").classList.toggle("hide",!mine.length);$("allFeed").innerHTML=posts.map(p=>card(p)).join("")||'<p class="muted">아직 끼리가 없습니다.</p>';doSearch()}
-const syms=[",",".","…","!","?","~",":",";","<",">","-","_","@","#","&","%","/","\\","(",")","*","[","]","{","}","+","−","×","÷","="];syms.forEach((s,i)=>{const b=document.createElement("button");b.type="button";b.textContent=s;b.onclick=()=>{const t=$("postText"),a=t.selectionStart,z=t.selectionEnd;t.setRangeText(s,a,z,"end");t.dispatchEvent(new Event("input"));t.focus()};$("symbols").append(b)});
+const syms=[",",".","…","!","?","~",":",";","<",">","-","_","@","#","&","%","/","\\","(",")","*","[","]","{","}","+","−","×","÷","="];
+function calculateExpression(raw){
+  const s=raw.replace(/\\s+/g,"").replace(/×/g,"*").replace(/÷/g,"/");
+  if(!s.includes("="))return null;
+  const parts=s.split("=");
+  if(parts.length!==2||!parts[0]||parts[1]!=="")return null;
+  const expr=parts[0];
+  if(!/^[0-9.+*/()−-]+$/.test(expr))return null;
+  const normalized=expr.replace(/−/g,"-");
+  if(!/^[0-9.+*/()\-]+$/.test(normalized))return null;
+  try{
+    const tokens=normalized.match(/(?:\\d+(?:\\.\\d*)?|\\.\\d+)|[()+*/-]/g);
+    if(!tokens||tokens.join("")!==normalized)return null;
+    let pos=0;
+    function factor(){
+      const tok=tokens[pos++];
+      if(tok==="+")return factor();
+      if(tok==="-")return -factor();
+      if(tok==="("){const v=expression();if(tokens[pos++]!==")")throw Error("괄호");return v;}
+      if(tok===undefined||!/^\\d+(?:\\.\\d*)?$|^\\.\\d+$/.test(tok))throw Error("숫자");
+      return Number(tok);
+    }
+    function term(){let v=factor();while(tokens[pos]==="*"||tokens[pos]==="/"){const op=tokens[pos++],n=factor();v=op==="*"?v*n:v/n;}return v;}
+    function expression(){let v=term();while(tokens[pos]==="+"||tokens[pos]==="-"){const op=tokens[pos++],n=term();v=op==="+"?v+n:v-n;}return v;}
+    const result=expression();
+    if(pos!==tokens.length||!Number.isFinite(result))return null;
+    return Number(result.toPrecision(12)).toString();
+  }catch{return null;}
+}
+syms.forEach((s)=>{const b=document.createElement("button");b.type="button";b.textContent=s;b.onclick=()=>{
+  const t=$("postText"),a=t.selectionStart,z=t.selectionEnd;
+  if(s==="="){
+    const before=t.value.slice(0,a),after=t.value.slice(z);
+    const answer=calculateExpression(before);
+    const insert=answer!==null?`=${answer}`:"=";
+    t.setRangeText(insert,a,z,"end");
+  }else{
+    t.setRangeText(s,a,z,"end");
+  }
+  t.dispatchEvent(new Event("input"));t.focus()
+};$("symbols").append(b)});
 $("postText").oninput=()=>$("count").textContent=`${$("postText").value.length} / 200자`;
 $("publish").onclick=async()=>{try{const text=$("postText").value.trim();if(!text||text.length>200)throw Error("글은 1~200자여야 합니다.");const tags=[...new Set([...text.matchAll(/#[가-힣A-Za-z0-9_]+/g)].map(m=>m[0]))];if(editing){const p=posts.find(p=>p.id===editing);if(!p||p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("글 수정은 작성 후 1시간 이내만 가능합니다.");await updateDoc(doc(db,"posts",editing),{text,tags,updatedAt:serverTimestamp()});editing=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide")}else await addDoc(collection(db,"posts"),{authorUid:me.uid,text,tags,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),iced:false,ice:0,perma:false});$("postText").value="";$("count").textContent="0 / 200자";$("postStatus").textContent=""}catch(e){say("postStatus",err(e))}};
 $("cancelEdit").onclick=()=>{editing=null;$("postText").value="";$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide");$("count").textContent="0 / 200자"};
