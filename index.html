@@ -84,7 +84,7 @@ import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app
 import{getAuth,createUserWithEmailAndPassword,signInWithCustomToken,signOut,onAuthStateChanged,sendPasswordResetEmail}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import{getFunctions,httpsCallable}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js";
 import{getFirestore,doc,getDoc,updateDoc,deleteDoc,collection,addDoc,query,orderBy,onSnapshot,serverTimestamp,runTransaction,getDocs,writeBatch}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
-const app=initializeApp({apiKey:"AIzaSyBiV_4mm2TbcC4bJsLkJpcXiUztGFYBL0",authDomain:"kkiri-kkiri-sns.firebaseapp.com",projectId:"kkiri-kkiri-sns",storageBucket:"kkiri-kkiri-sns.firebasestorage.app",messagingSenderId:"739393951571",appId:"1:739393951571:web:7c601229be7c13d1e7b3a6"});
+const app=initializeApp({apiKey:"AIzaSyBiV_4mm2TbcC4bJsLkJpcXiUztZGFYBL0",authDomain:"kkiri-kkiri-sns.firebaseapp.com",projectId:"kkiri-kkiri-sns",storageBucket:"kkiri-kkiri-sns.firebasestorage.app",messagingSenderId:"739393951571",appId:"1:739393951571:web:7c601229be7c13d1e7b3a6"});
 const auth=getAuth(app),db=getFirestore(app),functions=getFunctions(app,"asia-northeast3"),loginById=httpsCallable(functions,"signInWithId"),resetById=httpsCallable(functions,"sendPasswordResetById"),$=id=>document.getElementById(id);
 const ID=/^[가-힣A-Za-z][가-힣A-Za-z0-9]{4,9}$/,NICK=/^[가-힣A-Za-z\u00C0-\u024F\u1E00-\u1EFF]{3,5}$/u;
 let mode="login",me=null,profile=null,posts=[],unsubPosts=null,unsubComments=new Map(),comments=new Map(),editing=null,selectMode=false,profiles=new Map();
