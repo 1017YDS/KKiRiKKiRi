@@ -84,19 +84,81 @@ import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app
 import{getAuth,createUserWithEmailAndPassword,signInWithCustomToken,signOut,onAuthStateChanged}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import{getFirestore,doc,getDoc,updateDoc,deleteDoc,collection,addDoc,query,orderBy,onSnapshot,serverTimestamp,runTransaction,getDocs,writeBatch}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 const app=initializeApp({apiKey:"AIzaSyBiV_4mm2TbcC4bJsLkJpcXiUztZGFYBL0",authDomain:"kkiri-kkiri-sns.firebaseapp.com",projectId:"kkiri-kkiri-sns",storageBucket:"kkiri-kkiri-sns.firebasestorage.app",messagingSenderId:"739393951571",appId:"1:739393951571:web:7c601229be7c13d1e7b3a6"});
-cconst auth=getAuth(app),db=getFirestore(app),WORKER_URL="https://kkirikkiri-auth.hiyds1.workers.dev",$=id=>document.getElementById(id);
+const auth=getAuth(app),db=getFirestore(app),WORKER_URL="https://kkirikkiri-auth.hiyds1.workers.dev",$=id=>document.getElementById(id);
 const ID=/^[가-힣A-Za-z][가-힣A-Za-z0-9]{4,9}$/,NICK=/^[가-힣A-Za-z\u00C0-\u024F\u1E00-\u1EFF]{3,5}$/u;
 let mode="login",me=null,profile=null,posts=[],unsubPosts=null,unsubComments=new Map(),comments=new Map(),editing=null,selectMode=false,profiles=new Map();
 const norm=s=>s.trim().toLocaleLowerCase("ko-KR"),say=(id,s)=>{$(id).textContent=s;$(id).classList.remove("hide")};
 function err(e){const m={"auth/email-already-in-use":"이미 가입된 이메일입니다.","auth/invalid-email":"이메일 형식을 확인하세요.","auth/weak-password":"비밀번호를 더 길게 설정하세요.","auth/invalid-credential":"아이디 또는 비밀번호를 확인하세요.","auth/too-many-requests":"인증 요청이 일시 제한됐습니다. 잠시 기다린 뒤 다시 시도하세요.","permission-denied":"Firestore 보안 규칙을 확인하세요.","functions/not-found":"아이디 로그인 서버 기능을 배포해야 합니다.","functions/unauthenticated":"아이디 또는 비밀번호를 확인하세요.","functions/invalid-argument":"아이디 형식을 확인하세요."};return m[e.code]||e.message||"오류가 발생했습니다."}
 function setMode(m){mode=m;const signup=m==="signup";$("signupFields").classList.toggle("hide",!signup);$("emailField").classList.toggle("hide",!signup);$("loginIdField").classList.toggle("hide",signup);$("authTitle").textContent=signup?"회원가입":"아이디 로그인";$("authSubmit").textContent=signup?"가입하기":"로그인";$("signupMode").textContent=signup?"로그인으로 돌아가기":"회원가입";$("password").autocomplete=signup?"new-password":"current-password"}
 $("signupMode").onclick=()=>setMode(mode==="signup"?"login":"signup");
-$("resetPassword").onclick=async()=>{try{const id=$("loginId").value.trim();if(!id)throw Error("아이디를 먼저 입력하세요.");await resetById({id});say("authStatus","가입한 이메일로 비밀번호 재설정 메일을 보냈습니다. 가입 여부와 관계없이 같은 안내가 표시될 수 있습니다.")}catch(e){say("authStatus",err(e))}};
-$("authSubmit").onclick=async()=>{try{$("authSubmit").disabled=true;const password=$("password").value;if(!password)throw Error("비밀번호를 입력하세요.");if(mode==="login"){const id=$("loginId").value.trim();if(!id)throw Error("아이디를 입력하세요.");const result=await loginById({id,password});await signInWithCustomToken(auth,result.data.customToken);return}
-const email=$("email").value.trim();if(!email)throw Error("이메일을 입력하세요.");const id=$("newId").value.trim(),nick=$("newNick").value.trim();if(!ID.test(id))throw Error("아이디는 한글·영문으로 시작하는 5~10자여야 합니다.");if(nick&&!NICK.test(nick))throw Error("닉네임은 한글·영문 3~5자로 입력하세요.");
-const c=await createUserWithEmailAndPassword(auth,email,password);
-try{await runTransaction(db,async t=>{const ur=doc(db,"users",c.user.uid),ir=doc(db,"idClaims",norm(id)),is=await t.get(ir);if(is.exists())throw Error("이미 사용 중인 아이디입니다.");let nr,ns;if(nick){nr=doc(db,"nickClaims",norm(nick));ns=await t.get(nr);if(ns.exists())throw Error("이미 사용 중인 닉네임입니다.");}t.set(ur,{id,nick,email,createdAt:serverTimestamp(),lastIdChangeAt:null,lastNickChangeAt:null});t.set(ir,{uid:c.user.uid});if(nr)t.set(nr,{uid:c.user.uid})})}catch(e){await c.user.delete().catch(()=>{});throw e}
-}catch(e){say("authStatus",err(e))}finally{$("authSubmit").disabled=false}};
+$("resetPassword").onclick=async()=>{
+  try{
+    const id=$("loginId").value.trim();
+    if(!id) throw Error("아이디를 먼저 입력하세요.");
+    const response=await fetch(`${WORKER_URL}/reset-password`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({id})
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok) throw Error(data.error||"재설정 요청에 실패했습니다. 잠시 후 다시 시도하세요.");
+    say("authStatus","가입한 이메일로 비밀번호 재설정 메일을 보냈습니다. 가입 여부와 관계없이 같은 안내가 표시될 수 있습니다.");
+  }catch(e){
+    say("authStatus",err(e));
+  }
+};
+$("authSubmit").onclick=async()=>{
+  try{
+    $("authSubmit").disabled=true;
+    const password=$("password").value;
+    if(!password) throw Error("비밀번호를 입력하세요.");
+
+    if(mode==="login"){
+      const id=$("loginId").value.trim();
+      if(!id) throw Error("아이디를 입력하세요.");
+      const response=await fetch(`${WORKER_URL}/login`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({id,password})
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok) throw Error(data.error||"로그인에 실패했습니다. 아이디와 비밀번호를 확인하세요.");
+      if(!data.customToken) throw Error("로그인 응답을 확인할 수 없습니다. 잠시 후 다시 시도하세요.");
+      await signInWithCustomToken(auth,data.customToken);
+      return;
+    }
+
+    const email=$("email").value.trim();
+    if(!email) throw Error("이메일을 입력하세요.");
+    const id=$("newId").value.trim(),nick=$("newNick").value.trim();
+    if(!ID.test(id)) throw Error("아이디는 한글·영문으로 시작하는 5~10자여야 합니다.");
+    if(nick&&!NICK.test(nick)) throw Error("닉네임은 한글·영문 3~5자로 입력하세요.");
+
+    const c=await createUserWithEmailAndPassword(auth,email,password);
+    try{
+      await runTransaction(db,async t=>{
+        const ur=doc(db,"users",c.user.uid),ir=doc(db,"idClaims",norm(id)),is=await t.get(ir);
+        if(is.exists()) throw Error("이미 사용 중인 아이디입니다.");
+        let nr,ns;
+        if(nick){
+          nr=doc(db,"nickClaims",norm(nick));
+          ns=await t.get(nr);
+          if(ns.exists()) throw Error("이미 사용 중인 닉네임입니다.");
+        }
+        t.set(ur,{id,nick,email,createdAt:serverTimestamp(),lastIdChangeAt:null,lastNickChangeAt:null});
+        t.set(ir,{uid:c.user.uid});
+        if(nr) t.set(nr,{uid:c.user.uid});
+      });
+    }catch(e){
+      await c.user.delete().catch(()=>{});
+      throw e;
+    }
+  }catch(e){
+    say("authStatus",err(e));
+  }finally{
+    $("authSubmit").disabled=false;
+  }
+};
 $("logout").onclick=async()=>{try{await signOut(auth)}catch(e){alert(err(e))}};
 $("showProfile").onclick=()=>{$("profileEditor").classList.toggle("hide");$("changeId").value=profile?.id||"";$("changeNick").value=profile?.nick||""};
 $("cancelProfile").onclick=()=> $("profileEditor").classList.add("hide");
