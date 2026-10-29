@@ -180,16 +180,13 @@ function card(p,controls=true){const mine=p.authorUid===me?.uid,cs=comments.get(
 async function renderAll(){if(!me||!profile)return;const commentUids=[...comments.values()].flat().map(c=>c.authorUid);const uids=[...new Set([...posts.map(p=>p.authorUid),...commentUids])].filter(uid=>uid&&uid!==me.uid);await Promise.all(uids.map(async uid=>{if(!profiles.has(uid)){try{const s=await getDoc(doc(db,"users",uid));if(s.exists())profiles.set(uid,s.data())}catch{}}}));$("accountInfo").innerHTML=`<b>${esc(profile.nick||profile.id)}</b>`;const mine=posts.filter(p=>p.authorUid===me.uid);$("feed").innerHTML=mine.map(p=>card(p)).join("")||'<p class="muted">내 끼리가 아직 없습니다. 위에서 끼리를 작성해 보세요.</p>';$("mineTools").classList.toggle("hide",!mine.length);$("allFeed").innerHTML=posts.map(p=>card(p)).join("")||'<p class="muted">아직 끼리가 없습니다.</p>';doSearch()}
 const syms=[",",".","…","!","?","~",":",";","<",">","-","_","@","#","&","%","/","\\","(",")","*","[","]","{","}","+","−","×","÷","="];
 function calculateExpression(raw){
-  const s=raw.replace(/\\s+/g,"").replace(/×/g,"*").replace(/÷/g,"/");
-  if(!s.includes("="))return null;
-  const parts=s.split("=");
-  if(parts.length!==2||!parts[0]||parts[1]!=="")return null;
-  const expr=parts[0];
+  const expr=raw.replace(/\s+/g,"").replace(/×/g,"*").replace(/÷/g,"/");
+  if(!expr)return null;
   if(!/^[0-9.+*/()−-]+$/.test(expr))return null;
   const normalized=expr.replace(/−/g,"-");
   if(!/^[0-9.+*/()\-]+$/.test(normalized))return null;
   try{
-    const tokens=normalized.match(/(?:\\d+(?:\\.\\d*)?|\\.\\d+)|[()+*/-]/g);
+    const tokens=normalized.match(/(?:\d+(?:\.\d*)?|\.\d+)|[()+*/-]/g);
     if(!tokens||tokens.join("")!==normalized)return null;
     let pos=0;
     function factor(){
@@ -197,7 +194,7 @@ function calculateExpression(raw){
       if(tok==="+")return factor();
       if(tok==="-")return -factor();
       if(tok==="("){const v=expression();if(tokens[pos++]!==")")throw Error("괄호");return v;}
-      if(tok===undefined||!/^\\d+(?:\\.\\d*)?$|^\\.\\d+$/.test(tok))throw Error("숫자");
+      if(tok===undefined||!/^\d+(?:\.\d*)?$|^\.\d+$/.test(tok))throw Error("숫자");
       return Number(tok);
     }
     function term(){let v=factor();while(tokens[pos]==="*"||tokens[pos]==="/"){const op=tokens[pos++],n=factor();v=op==="*"?v*n:v/n;}return v;}
