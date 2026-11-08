@@ -118,6 +118,7 @@ const app=initializeApp({apiKey:"AIzaSyBiV_4mm2TbcC4bJsLkJpcXiUztZGFYBL0",authDo
 const auth=getAuth(app),db=getFirestore(app),WORKER_URL="https://kkirikkiri-auth.hiyds1.workers.dev",$=id=>document.getElementById(id);
 const ID=/^[가-힣A-Za-z][가-힣A-Za-z0-9]{4,9}$/,NICK=/^[가-힣A-Za-z\u00C0-\u024F\u1E00-\u1EFF]{3,5}$/u;
 let mode="login",me=null,profile=null,posts=[],unsubPosts=null,unsubComments=new Map(),comments=new Map(),editing=null,selectMode=false,profiles=new Map(),formatUids=new Set(),unsubPermissions=null,editingMarks=[],savedSelection={start:0,end:0};
+const CREATOR_UID="2JOdaL1pWBSNjJFdFnNnKJUkhyk1";
 const norm=s=>s.trim().toLocaleLowerCase("ko-KR"),say=(id,s)=>{$(id).textContent=s;$(id).classList.remove("hide")};
 function err(e){const m={"auth/email-already-in-use":"이미 가입된 이메일입니다.","auth/invalid-email":"이메일 형식을 확인하세요.","auth/weak-password":"비밀번호를 더 길게 설정하세요.","auth/invalid-credential":"아이디 또는 비밀번호를 확인하세요.","auth/too-many-requests":"인증 요청이 일시 제한됐습니다. 잠시 기다린 뒤 다시 시도하세요.","permission-denied":"Firestore 보안 규칙을 확인하세요.","functions/not-found":"아이디 로그인 서버 기능을 배포해야 합니다.","functions/unauthenticated":"아이디 또는 비밀번호를 확인하세요.","functions/invalid-argument":"아이디 형식을 확인하세요."};return m[e.code]||e.message||"오류가 발생했습니다."}
 function setMode(m){mode=m;const signup=m==="signup";$("signupFields").classList.toggle("hide",!signup);$("emailField").classList.toggle("hide",!signup);$("loginIdField").classList.toggle("hide",signup);$("authTitle").textContent=signup?"회원가입":"아이디 로그인";$("authSubmit").textContent=signup?"가입하기":"로그인";$("signupMode").textContent=signup?"로그인으로 돌아가기":"회원가입";$("password").autocomplete=signup?"new-password":"current-password"}
@@ -204,7 +205,7 @@ async function loadProfile(){const s=await getDoc(doc(db,"users",me.uid));profil
 onAuthStateChanged(auth,async u=>{me=u;if(unsubPosts)unsubPosts();if(unsubPermissions)unsubPermissions();unsubComments.forEach(f=>f());unsubComments.clear();comments.clear();formatUids=new Set();profile=null;posts=[];["accountCard","compose","searchScreen","mineScreen","allScreen"].forEach(id=>$(id).classList.toggle("hide",!u));$("formatAdmin").classList.add("hide");$("authCard").classList.toggle("hide",!!u);if(!u){renderAll();return}try{await loadProfile();if(!profile)throw Error("프로필을 찾을 수 없습니다.");unsubPermissions=onSnapshot(collection(db,"formatPermissions"),snap=>{formatUids=new Set(snap.docs.map(d=>d.id));renderAll()},e=>console.warn("P 권한 목록을 불러오지 못했습니다.",e));unsubPosts=onSnapshot(query(collection(db,"posts"),orderBy("createdAt","desc")),snap=>{posts=snap.docs.map(d=>({id:d.id,...d.data()}));expireOldIce();syncCommentListeners();renderAll()},e=>say("authStatus",err(e)));renderAll()}catch(e){say("authStatus",err(e))}});
 function syncCommentListeners(){const ids=new Set(posts.map(p=>p.id));for(const [id,fn]of unsubComments)if(!ids.has(id)){fn();unsubComments.delete(id);comments.delete(id)}for(const id of ids)if(!unsubComments.has(id)){unsubComments.set(id,onSnapshot(query(collection(db,"posts",id,"comments"),orderBy("createdAt","asc")),s=>{comments.set(id,s.docs.map(d=>({id:d.id,...d.data()})));renderAll()},()=>{}))}}
 function name(uid){if(uid===me?.uid)return profile?.nick||profile?.id||"나";return profiles.get(uid)?.nick||profiles.get(uid)?.id||"사용자"}
-function hasP(uid){return formatUids.has(uid)||(uid===me?.uid&&profile?.nick==="창조주")||profiles.get(uid)?.nick==="창조주"}
+function hasP(uid){return uid===CREATOR_UID||formatUids.has(uid)}
 function authorLabel(uid){return `${esc(name(uid))}${hasP(uid)?'&nbsp;<span class="p-badge" title="글씨 꾸미기 권한">P</span>':""}`}
 function safeColor(v){return typeof v==="string"&&/^#[0-9a-fA-F]{6}$/.test(v)?v.toUpperCase():""}
 function renderStyledText(text,marks=[]){
@@ -238,7 +239,19 @@ async function searchFormatUsers(){
     const snap=await getDocs(collection(db,"users"));
     const matches=snap.docs.map(d=>({uid:d.id,...d.data()}))
       .filter(u=>`${u.id||""} ${u.nick||""}`.toLocaleLowerCase("ko-KR").includes(q)).slice(0,30);
-    $("formatAdminResults").innerHTML=matches.map(u=>`<div class="format-admin-result"><span><b>${esc(u.nick||u.id)}</b> <small>${esc(u.id||"")}${u.nick?" · "+esc(u.nick):""}</small>${formatUids.has(u.uid)?'&nbsp;<span class="p-badge">P</span>':""}</span><button type="button" data-format-user="${u.uid}" data-granted="${formatUids.has(u.uid)}">${formatUids.has(u.uid)?"권한 회수":"P 권한 허락"}</button></div>`).join("")||'<small class="muted">검색 결과가 없습니다.</small>';
+    $("formatAdminResults").innerHTML=matches.map(u=>{
+      const creator=u.uid===CREATOR_UID;
+      const granted=formatUids.has(u.uid);
+      const status=creator
+        ? '<small class="muted">창조주 · 기본 P 권한</small>'
+        : granted
+          ? '<small class="muted">P 권한 사용 중</small>'
+          : '';
+      const action=creator
+        ? ''
+        : `<button type="button" data-format-user="${u.uid}" data-granted="${granted}">${granted?"권한 회수":"P 권한 허락"}</button>`;
+      return `<div class="format-admin-result"><span><b>${esc(u.nick||u.id)}</b> <small>${esc(u.id||"")}${u.nick?" · "+esc(u.nick):""}</small>${creator||granted?'&nbsp;<span class="p-badge">P</span>':""} ${status}</span>${action}</div>`;
+    }).join("")||'<small class="muted">검색 결과가 없습니다.</small>';
   }catch(e){$("formatAdminResults").textContent=err(e)}
 }
 $("formatSearchBtn").onclick=searchFormatUsers;
@@ -246,6 +259,7 @@ $("formatSearch").onkeydown=e=>{if(e.key==="Enter")searchFormatUsers()};
 $("formatAdminResults").addEventListener("click",async e=>{
   const b=e.target.closest("button[data-format-user]");if(!b)return;
   const uid=b.dataset.formatUser;
+  if(uid===CREATOR_UID){alert("창조주 계정은 기본 P 권한이 있어 별도 부여가 필요하지 않습니다.");return}
   try{
     if(b.dataset.granted==="true"){
       if(!confirm("이 사용자의 P 권한을 회수할까요?"))return;
@@ -257,7 +271,7 @@ $("formatAdminResults").addEventListener("click",async e=>{
     await searchFormatUsers();
   }catch(e){alert(err(e))}
 });
-async function renderAll(){if(!me||!profile)return;$("formatAdmin").classList.toggle("hide",profile.nick!=="유다온");$("formatToolbar").classList.toggle("hide",!hasP(me.uid));const commentUids=[...comments.values()].flat().map(c=>c.authorUid);const uids=[...new Set([...posts.map(p=>p.authorUid),...commentUids])].filter(uid=>uid&&uid!==me.uid);await Promise.all(uids.map(async uid=>{if(!profiles.has(uid)){try{const s=await getDoc(doc(db,"users",uid));if(s.exists())profiles.set(uid,s.data())}catch{}}}));$("accountInfo").innerHTML=`<b>${esc(profile.nick||profile.id)}</b>${hasP(me.uid)?'&nbsp;<span class="p-badge" title="글씨 꾸미기 권한">P</span>':""}`;const mine=posts.filter(p=>p.authorUid===me.uid);$("feed").innerHTML=mine.map(p=>card(p)).join("")||'<p class="muted">내 끼리가 아직 없습니다. 위에서 끼리를 작성해 보세요.</p>';$("mineTools").classList.toggle("hide",!mine.length);$("allFeed").innerHTML=posts.map(p=>card(p)).join("")||'<p class="muted">아직 끼리가 없습니다.</p>';doSearch()}
+async function renderAll(){if(!me||!profile)return;$("formatAdmin").classList.toggle("hide",me.uid!==CREATOR_UID);$("formatToolbar").classList.toggle("hide",!hasP(me.uid));const commentUids=[...comments.values()].flat().map(c=>c.authorUid);const uids=[...new Set([...posts.map(p=>p.authorUid),...commentUids])].filter(uid=>uid&&uid!==me.uid);await Promise.all(uids.map(async uid=>{if(!profiles.has(uid)){try{const s=await getDoc(doc(db,"users",uid));if(s.exists())profiles.set(uid,s.data())}catch{}}}));$("accountInfo").innerHTML=`<b>${esc(profile.nick||profile.id)}</b>${hasP(me.uid)?'&nbsp;<span class="p-badge" title="글씨 꾸미기 권한">P</span>':""}`;const mine=posts.filter(p=>p.authorUid===me.uid);$("feed").innerHTML=mine.map(p=>card(p)).join("")||'<p class="muted">내 끼리가 아직 없습니다. 위에서 끼리를 작성해 보세요.</p>';$("mineTools").classList.toggle("hide",!mine.length);$("allFeed").innerHTML=posts.map(p=>card(p)).join("")||'<p class="muted">아직 끼리가 없습니다.</p>';doSearch()}
 const syms=[",",".","…","!","?","~",":",";","<",">","-","_","@","#","&","%","/","\\","(",")","*","[","]","{","}","+","−","×","÷","="];
 function calculateExpression(raw){
   const expr=raw.replace(/\s+/g,"").replace(/×/g,"*").replace(/÷/g,"/");
