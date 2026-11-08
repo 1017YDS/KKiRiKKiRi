@@ -26,11 +26,11 @@ button:disabled{opacity:.4}button[data-ice]{background:#B9E7FF}button[data-ice]:
 .post-content img{display:block;max-width:100%;max-height:400px;object-fit:contain;margin:10px auto;border-radius:7px}
 .status{white-space:pre-wrap;margin-top:8px}
 .p-badge{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:6px;background:#dc2626;color:#fff;font-size:11px;font-weight:800;line-height:1;vertical-align:middle;border-radius:2px}
-.format-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:8px 0}
-.format-toolbar button{margin:0;padding:6px 9px;background:#F5F5DC}
-.format-color{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:3px 0}
-.format-color input[type=color]{width:34px;height:32px;padding:2px;margin:0}
-.format-color input[type=text]{width:92px;padding:6px;margin:0}
+.format-toolbar{display:flex;flex-wrap:nowrap;align-items:center;gap:4px;margin:8px 0;width:100%}
+.format-toolbar button{flex:1;min-width:0;margin:0;padding:7px 3px;background:#F5F5DC;white-space:nowrap;font-size:13px}
+.format-toolbar input[type=color]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+#postText{min-height:130px;width:100%;border:2px solid var(--ink);border-radius:7px;padding:10px;background:#fff;font:inherit;white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
+#postText:empty:before{content:attr(data-placeholder);color:#94a3b8;pointer-events:none}
 .format-admin-result{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid #ddd}
 @media(max-width:480px){.wrap{padding:8px}.card,.post{padding:10px}.symbols{grid-template-columns:repeat(8,1fr)}}
 </style>
@@ -81,22 +81,14 @@ button:disabled{opacity:.4}button[data-ice]{background:#B9E7FF}button[data-ice]:
 <h3 id="composeTitle">새 끼리 <small id="count">0 / 200자</small></h3>
 <div id="formatToolbar" class="hide">
 <div class="format-toolbar">
-<button type="button" data-format="bold"><b>B</b></button>
-<button type="button" data-format="italic"><i>I</i></button>
-<button type="button" data-format="underline"><u>U</u></button>
-</div>
-<div class="format-color">
-<small>글씨색</small><input id="textColorPicker" type="color" value="#dc2626">
-<input id="textColorHex" type="text" value="#DC2626" maxlength="7" aria-label="글씨색상 코드">
-
-</div>
-<div class="format-color">
-<small>배경색</small><input id="bgColorPicker" type="color" value="#fff2a8">
-<input id="bgColorHex" type="text" value="#FFF2A8" maxlength="7" aria-label="글씨 배경색상 코드">
-
+<button type="button" data-command="bold" title="굵게"><b>B</b></button>
+<button type="button" data-command="italic" title="기울임"><i>I</i></button>
+<button type="button" data-command="underline" title="밑줄"><u>U</u></button>
+<button type="button" id="textColorBtn" title="글씨색">A ▾<input id="textColorPicker" type="color" value="#dc2626" aria-label="글씨색 선택"></button>
+<button type="button" id="bgColorBtn" title="배경색">▰ ▾<input id="bgColorPicker" type="color" value="#fff2a8" aria-label="배경색 선택"></button>
 </div>
 </div>
-<textarea id="postText" maxlength="200" rows="5" placeholder="끼리를 작성하세요. (최대 200자)"></textarea>
+<div id="postText" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="끼리를 작성하세요. (최대 200자)"></div>
 <div class="row"><small>사진 첨부 없음 · 글과 링크만</small></div>
 <div id="symbols" class="symbols"></div>
 <div class="row"><button id="publish">끼리 올리기</button><button id="cancelEdit" class="hide">수정 취소</button></div>
@@ -298,49 +290,56 @@ function calculateExpression(raw){
     return Number(result.toPrecision(12)).toString();
   }catch{return null;}
 }
-syms.forEach((s)=>{const b=document.createElement("button");b.type="button";b.textContent=s;b.onclick=()=>{
-  const t=$("postText"),a=t.selectionStart,z=t.selectionEnd;
-  if(s==="="){
-    const before=t.value.slice(0,a),after=t.value.slice(z);
-    const answer=calculateExpression(before);
-    const insert=answer!==null?`=${answer}`:"=";
-    t.setRangeText(insert,a,z,"end");
-  }else{
-    t.setRangeText(s,a,z,"end");
-  }
-  t.dispatchEvent(new Event("input"));t.focus()
-};$("symbols").append(b)});
 const postArea=$("postText");
-function rememberSelection(){savedSelection={start:postArea.selectionStart,end:postArea.selectionEnd}}
-["select","keyup","mouseup","touchend","input"].forEach(ev=>postArea.addEventListener(ev,rememberSelection));
-document.addEventListener("selectionchange",()=>{if(document.activeElement===postArea)rememberSelection()});
-function addFormatMark(patch){
-  const {start,end}=savedSelection;
-  if(start===end){say("postStatus","먼저 꾸밀 글자를 마우스나 손가락으로 선택하세요.");return}
-  if(!hasP(me?.uid)){say("postStatus","P 권한이 있는 사용자만 사용할 수 있습니다.");return}
-  // 같은 글자 범위에 적용한 효과는 서로 덮어쓰지 않고 합칩니다.
-  const existing=editingMarks.find(m=>m.start===start&&m.end===end);
-  if(existing) Object.assign(existing,patch);
-  else editingMarks.push({start,end,...patch});
-  say("postStatus","선택한 글자에 효과를 적용했습니다. 글을 올리면 저장됩니다.");
-  postArea.focus();postArea.setSelectionRange(start,end);
+let savedRange=null;
+function saveEditorSelection(){const sel=getSelection();if(sel&&sel.rangeCount&&postArea.contains(sel.anchorNode))savedRange=sel.getRangeAt(0).cloneRange()}
+function restoreEditorSelection(){postArea.focus();const sel=getSelection();if(savedRange){sel.removeAllRanges();sel.addRange(savedRange)}}
+["keyup","mouseup","touchend","input","focus"].forEach(ev=>postArea.addEventListener(ev,saveEditorSelection));
+document.addEventListener("selectionchange",saveEditorSelection);
+postArea.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();restoreEditorSelection();document.execCommand("insertLineBreak");saveEditorSelection();updateEditorCount()}});
+postArea.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text/plain");restoreEditorSelection();document.execCommand("insertText",false,t);saveEditorSelection();updateEditorCount()});
+function editorText(){return postArea.innerText.replace(/\r/g,"")}
+function updateEditorCount(){$("count").textContent=`${editorText().length} / 200자`}
+function colorHex(value){if(!value)return "";if(/^#[0-9a-f]{6}$/i.test(value))return value.toUpperCase();const m=value.match(/\d+/g);return m&&m.length>=3?"#"+m.slice(0,3).map(x=>Number(x).toString(16).padStart(2,"0")).join("").toUpperCase():""}
+function collectEditorMarks(){
+ const marks=[];let offset=0;
+ function walk(node, inherited={}){
+  if(node.nodeType===Node.TEXT_NODE){const len=node.nodeValue.length,start=offset;offset+=len;if(len){const m={start,end:offset};if(inherited.bold)m.bold=true;if(inherited.italic)m.italic=true;if(inherited.underline)m.underline=true;if(inherited.color)m.color=inherited.color;if(inherited.bg)m.bg=inherited.bg;if(Object.keys(m).length>2)marks.push(m)}return}
+  if(node.nodeType!==Node.ELEMENT_NODE)return;
+  if(node.tagName==="BR"){offset++;return}
+  const st=node.style||{},next={...inherited};
+  if(node.tagName==="B"||node.tagName==="STRONG"||st.fontWeight==="bold"||Number(st.fontWeight)>=600)next.bold=true;
+  if(node.tagName==="I"||node.tagName==="EM"||st.fontStyle==="italic")next.italic=true;
+  if(node.tagName==="U"||st.textDecoration.includes("underline"))next.underline=true;
+  if(st.color)next.color=colorHex(st.color);else if(node.tagName==="FONT"&&node.getAttribute("color"))next.color=colorHex(node.getAttribute("color"));
+  if(st.backgroundColor)next.bg=colorHex(st.backgroundColor);
+  for(const child of node.childNodes)walk(child,next);
+ }
+ for(const child of postArea.childNodes)walk(child,{});
+ return marks.slice(0,100);
 }
-document.querySelectorAll("[data-format]").forEach(b=>b.onclick=()=>addFormatMark({[b.dataset.format]:true}));
-function syncColor(id){const v=$(id+"Picker").value.toUpperCase();$(id+"Hex").value=v}
-function applyColor(kind){
-  const id=kind==="color"?"textColor":"bgColor",v=$(`${id}Hex`).value.trim();
-  if(!/^#[0-9a-fA-F]{6}$/.test(v))return;
-  $(`${id}Picker`).value=v;
-  addFormatMark({[kind]:v.toUpperCase()});
+function setEditorContent(text,marks=[]){
+ const chars=[...String(text||"")];let html="";
+ for(let i=0;i<chars.length;){if(chars[i]==="\n"){html+="<br>";i++;continue}const st={bold:false,italic:false,underline:false,color:"",bg:""};for(const m of marks)if(i>=m.start&&i<m.end){st.bold=st.bold||m.bold===true;st.italic=st.italic||m.italic===true;st.underline=st.underline||m.underline===true;if(m.color)st.color=safeColor(m.color);if(m.bg)st.bg=safeColor(m.bg)}let j=i+1;while(j<chars.length&&chars[j]!=="\n"){const n={bold:false,italic:false,underline:false,color:"",bg:""};for(const m of marks)if(j>=m.start&&j<m.end){n.bold=n.bold||m.bold===true;n.italic=n.italic||m.italic===true;n.underline=n.underline||m.underline===true;if(m.color)n.color=safeColor(m.color);if(m.bg)n.bg=safeColor(m.bg)}if(JSON.stringify(n)!==JSON.stringify(st))break;j++}const css=[st.bold?"font-weight:700":"",st.italic?"font-style:italic":"",st.underline?"text-decoration:underline":"",st.color?`color:${st.color}`:"",st.bg?`background-color:${st.bg}`:""].filter(Boolean).join(";");const t=chars.slice(i,j).join("").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));html+=css?`<span style="${css}">${t}</span>`:t;i=j}
+ postArea.innerHTML=html;savedRange=null;updateEditorCount();
 }
-// 색상 선택기에서 색을 고르면 즉시 적용하고, HEX 입력도 6자리가 완성되면 자동 적용합니다.
-$("textColorPicker").oninput=()=>{syncColor("textColor");applyColor("color")};
-$("bgColorPicker").oninput=()=>{syncColor("bgColor");applyColor("bg")};
-$("textColorHex").oninput=()=>applyColor("color");
-$("bgColorHex").oninput=()=>applyColor("bg");
-$("postText").oninput=()=>$("count").textContent=`${$("postText").value.length} / 200자`;
-$("publish").onclick=async()=>{try{const text=$("postText").value.trim();if(!text||text.length>200)throw Error("글은 1~200자여야 합니다.");const marks=hasP(me.uid)?editingMarks.filter(m=>m.start>=0&&m.end<=text.length&&m.end>m.start):[];const tags=[...new Set([...text.matchAll(/#[가-힣A-Za-z0-9_]+/g)].map(m=>m[0]))];if(editing){const p=posts.find(p=>p.id===editing);if(!p||p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("글 수정은 작성 후 1시간 이내만 가능합니다.");if((p.editCount||0)>=5)throw Error("끼리 수정은 최대 5회까지 가능합니다.");await updateDoc(doc(db,"posts",editing),{text,tags,...(hasP(me.uid)?{marks}:{}),editCount:(p.editCount||0)+1,updatedAt:serverTimestamp()});editing=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide")}else await addDoc(collection(db,"posts"),{authorUid:me.uid,text,tags,...(hasP(me.uid)&&marks.length?{marks}:{}),createdAt:serverTimestamp(),updatedAt:serverTimestamp(),editCount:0,iced:false,ice:0,perma:false,icedAt:null});$("postText").value="";editingMarks=[];savedSelection={start:0,end:0};$("count").textContent="0 / 200자";$("postStatus").textContent=""}catch(e){say("postStatus",err(e))}};
-$("cancelEdit").onclick=()=>{editing=null;editingMarks=[];$("postText").value="";$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide");$("count").textContent="0 / 200자"};
+function insertSymbol(s){restoreEditorSelection();if(s==="="){const txt=editorText(),sel=getSelection();if(!sel.rangeCount)return;const r=sel.getRangeAt(0),before=txt.slice(0,rangeOffset(r)),answer=calculateExpression(before);document.execCommand("insertText",false,answer!==null?`=${answer}`:"=")}else document.execCommand("insertText",false,s);saveEditorSelection();updateEditorCount()}
+function rangeOffset(range){const pre=range.cloneRange();pre.selectNodeContents(postArea);pre.setEnd(range.startContainer,range.startOffset);return pre.toString().length}
+syms.forEach(s=>{const b=document.createElement("button");b.type="button";b.textContent=s;b.onclick=()=>insertSymbol(s);$("symbols").append(b)});
+postArea.addEventListener("input",()=>{updateEditorCount();saveEditorSelection()});
+document.querySelectorAll("[data-command]").forEach(b=>{b.addEventListener("mousedown",e=>e.preventDefault());b.onclick=()=>{restoreEditorSelection();document.execCommand(b.dataset.command,false,null);saveEditorSelection();updateEditorCount()}});
+function chooseColor(kind){const picker=$(kind==="foreColor"?"textColorPicker":"bgColorPicker");picker.click()}
+$("textColorBtn").addEventListener("mousedown",e=>e.preventDefault());$("bgColorBtn").addEventListener("mousedown",e=>e.preventDefault());
+$("textColorBtn").onclick=()=>chooseColor("foreColor");$("bgColorBtn").onclick=()=>chooseColor("hiliteColor");
+["textColorPicker","bgColorPicker"].forEach(id=>$(id).addEventListener("click",e=>e.stopPropagation()));
+function applyPickerColor(id,command){restoreEditorSelection();document.execCommand(command,false,$(id).value);saveEditorSelection()}
+$("textColorPicker").oninput=()=>applyPickerColor("textColorPicker","foreColor");
+$("bgColorPicker").oninput=()=>applyPickerColor("bgColorPicker","hiliteColor");
+function enterHexColor(id,command,label){const raw=prompt(`${label} HEX 색상 코드를 입력하세요. 예: #FF0000`,$(id).value.toUpperCase());if(raw===null)return;const value=raw.trim();if(!/^#[0-9a-fA-F]{6}$/.test(value)){alert("#을 포함한 6자리 색상 코드로 입력하세요.");return}$(id).value=value;applyPickerColor(id,command)}
+$("textColorBtn").ondblclick=()=>enterHexColor("textColorPicker","foreColor","글씨색");
+$("bgColorBtn").ondblclick=()=>enterHexColor("bgColorPicker","hiliteColor","배경색");
+$("publish").onclick=async()=>{try{const text=editorText().trim();if(!text||text.length>200)throw Error("글은 1~200자여야 합니다.");const marks=hasP(me.uid)?collectEditorMarks().filter(m=>m.start>=0&&m.end<=text.length&&m.end>m.start):[];const tags=[...new Set([...text.matchAll(/#[가-힣A-Za-z0-9_]+/g)].map(m=>m[0]))];if(editing){const p=posts.find(p=>p.id===editing);if(!p||p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("글 수정은 작성 후 1시간 이내만 가능합니다.");if((p.editCount||0)>=5)throw Error("끼리 수정은 최대 5회까지 가능합니다.");await updateDoc(doc(db,"posts",editing),{text,tags,...(hasP(me.uid)?{marks}:{}),editCount:(p.editCount||0)+1,updatedAt:serverTimestamp()});editing=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide")}else await addDoc(collection(db,"posts"),{authorUid:me.uid,text,tags,...(hasP(me.uid)&&marks.length?{marks}:{}),createdAt:serverTimestamp(),updatedAt:serverTimestamp(),editCount:0,iced:false,ice:0,perma:false,icedAt:null});postArea.innerHTML="";editingMarks=[];savedRange=null;updateEditorCount();$("postStatus").textContent=""}catch(e){say("postStatus",err(e))}};
+$("cancelEdit").onclick=()=>{editing=null;editingMarks=[];postArea.innerHTML="";savedRange=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide");updateEditorCount()};
 function doSearch(){
   const q=norm($("search").value||"");
   const found=posts.filter(p=>{
@@ -372,7 +371,7 @@ $("searchbtn").onclick=doSearch;$("search").onkeydown=e=>{if(e.key==="Enter")doS
 $("select").onclick=()=>{selectMode=!selectMode;$("select").textContent=selectMode?"선택 삭제 실행":"선택 삭제";if(selectMode){renderAll();return}const ids=[...document.querySelectorAll(".pick:checked")].map(x=>x.dataset.id);if(ids.length&&confirm(`${ids.length}개 글을 삭제할까요?`))Promise.all(ids.map(id=>{const p=posts.find(p=>p.id===id);return p?.authorUid===me.uid?deleteDoc(doc(db,"posts",id)):Promise.resolve()}));renderAll()};
 $("delall").onclick=async()=>{const mine=posts.filter(p=>p.authorUid===me.uid);if(!mine.length)return alert("삭제할 글이 없습니다.");if(confirm(`내 끼리 ${mine.length}개를 모두 삭제할까요?`))for(const p of mine)await deleteDoc(doc(db,"posts",p.id))};
 document.addEventListener("click",async e=>{const b=e.target.closest("button[data-act]");if(!b)return;const {act,id,cid}=b.dataset,p=posts.find(p=>p.id===id);if(!p)return;try{
-if(act==="edit"){if(p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("수정 시간이 지났습니다.");if((p.editCount||0)>=5)throw Error("끼리 수정은 최대 5회까지 가능합니다.");editing=id;editingMarks=Array.isArray(p.marks)?p.marks:[];$("postText").value=p.text;$("count").textContent=`${p.text.length} / 200자`;$("composeTitle").innerHTML='끼리 수정 <small id="count">'+p.text.length+' / 200자</small>';$("publish").textContent="수정 저장";$("cancelEdit").classList.remove("hide");$("postText").focus();$("compose").scrollIntoView({behavior:"smooth"})}
+if(act==="edit"){if(p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("수정 시간이 지났습니다.");if((p.editCount||0)>=5)throw Error("끼리 수정은 최대 5회까지 가능합니다.");editing=id;editingMarks=Array.isArray(p.marks)?p.marks:[];setEditorContent(p.text,p.marks||[]);$("count").textContent=`${p.text.length} / 200자`;$("composeTitle").innerHTML='끼리 수정 <small id="count">'+p.text.length+' / 200자</small>';$("publish").textContent="수정 저장";$("cancelEdit").classList.remove("hide");postArea.focus();$("compose").scrollIntoView({behavior:"smooth"})}
 if(act==="delete"&&p.authorUid===me.uid&&confirm("이 끼리를 삭제할까요?"))await deleteDoc(doc(db,"posts",id));
 if(act==="ice"&&p.authorUid===me.uid){if(p.perma)throw Error("이미 영구 얼음 상태입니다.");if(p.iced){await updateDoc(doc(db,"posts",id),{iced:false,icedAt:null,updatedAt:serverTimestamp()})}else{const n=(p.ice||0)+1;await updateDoc(doc(db,"posts",id),{ice:n,iced:true,icedAt:serverTimestamp(),perma:n>=3,updatedAt:serverTimestamp()})}}
 if(act==="comment"){if(p.iced||p.perma)throw Error("댓글이 잠겨 있습니다.");const input=b.closest(".post-shell")?.querySelector(`[data-input="${id}"]`),text=input?.value.trim();if(!text||text.length>200)throw Error("댓글은 1~200자여야 합니다.");const latestSnap=await getDocs(query(collection(db,"posts",id,"comments"),orderBy("createdAt","desc"),limit(1)));const latest=latestSnap.docs[0]?.data();if(latest?.authorUid===me.uid)throw Error("다른 사람이 댓글을 단 뒤에 다시 댓글을 작성할 수 있습니다.");await addDoc(collection(db,"posts",id,"comments"),{authorUid:me.uid,text,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),editCount:0});input.value=""}
