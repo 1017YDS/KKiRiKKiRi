@@ -294,6 +294,8 @@ const postArea=$("postText");
 let savedRange=null;
 function saveEditorSelection(){const sel=getSelection();if(sel&&sel.rangeCount&&postArea.contains(sel.anchorNode))savedRange=sel.getRangeAt(0).cloneRange()}
 function restoreEditorSelection(){postArea.focus();const sel=getSelection();if(savedRange){sel.removeAllRanges();sel.addRange(savedRange)}}
+function selectedEditorRange(){restoreEditorSelection();const sel=getSelection();if(!sel||!sel.rangeCount||!postArea.contains(sel.anchorNode))return null;const r=sel.getRangeAt(0);return r.collapsed?null:r.cloneRange()}
+function finishFormatAtSelectionEnd(range){const sel=getSelection();if(!sel)return;sel.removeAllRanges();const end=range.cloneRange();end.collapse(false);sel.addRange(end);savedRange=end.cloneRange();/* 선택한 글자 뒤의 새 입력은 기본 서식으로 */document.execCommand("removeFormat",false,null);}
 ["keyup","mouseup","touchend","input","focus"].forEach(ev=>postArea.addEventListener(ev,saveEditorSelection));
 document.addEventListener("selectionchange",saveEditorSelection);
 postArea.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();restoreEditorSelection();document.execCommand("insertLineBreak");saveEditorSelection();updateEditorCount()}});
@@ -326,16 +328,16 @@ function setEditorContent(text,marks=[]){
 function insertSymbol(s){restoreEditorSelection();if(s==="="){const txt=editorText(),sel=getSelection();if(!sel.rangeCount)return;const r=sel.getRangeAt(0),before=txt.slice(0,rangeOffset(r)),answer=calculateExpression(before);document.execCommand("insertText",false,answer!==null?`=${answer}`:"=")}else document.execCommand("insertText",false,s);saveEditorSelection();updateEditorCount()}
 function rangeOffset(range){const pre=range.cloneRange();pre.selectNodeContents(postArea);pre.setEnd(range.startContainer,range.startOffset);return pre.toString().length}
 syms.forEach(s=>{const b=document.createElement("button");b.type="button";b.textContent=s;b.onclick=()=>insertSymbol(s);$("symbols").append(b)});
-postArea.addEventListener("input",()=>{updateEditorCount();saveEditorSelection()});
-document.querySelectorAll("[data-command]").forEach(b=>{b.addEventListener("mousedown",e=>e.preventDefault());b.onclick=()=>{restoreEditorSelection();document.execCommand(b.dataset.command,false,null);saveEditorSelection();updateEditorCount()}});
-function chooseColor(kind){const picker=$(kind==="foreColor"?"textColorPicker":"bgColorPicker");picker.click()}
+postArea.addEventListener("input",()=>{if(!editorText()){postArea.innerHTML="";savedRange=null}updateEditorCount();saveEditorSelection()});
+document.querySelectorAll("[data-command]").forEach(b=>{b.addEventListener("mousedown",e=>e.preventDefault());b.onclick=()=>{const range=selectedEditorRange();if(!range){say("postStatus","꾸밀 글자를 먼저 드래그해서 선택해 주세요.");return}document.execCommand(b.dataset.command,false,null);finishFormatAtSelectionEnd(range);updateEditorCount();$("postStatus").textContent=""}});
+function chooseColor(kind){const range=selectedEditorRange();if(!range){say("postStatus","색을 바꿀 글자를 먼저 드래그해서 선택해 주세요.");return}const picker=$(kind==="foreColor"?"textColorPicker":"bgColorPicker");picker.click()}
 $("textColorBtn").addEventListener("mousedown",e=>e.preventDefault());$("bgColorBtn").addEventListener("mousedown",e=>e.preventDefault());
 $("textColorBtn").onclick=()=>chooseColor("foreColor");$("bgColorBtn").onclick=()=>chooseColor("hiliteColor");
 ["textColorPicker","bgColorPicker"].forEach(id=>$(id).addEventListener("click",e=>e.stopPropagation()));
-function applyPickerColor(id,command){restoreEditorSelection();document.execCommand(command,false,$(id).value);saveEditorSelection()}
+function applyPickerColor(id,command){const range=selectedEditorRange();if(!range){say("postStatus","색을 바꿀 글자를 먼저 드래그해서 선택해 주세요.");return}document.execCommand(command,false,$(id).value);finishFormatAtSelectionEnd(range);$("postStatus").textContent=""}
 $("textColorPicker").oninput=()=>applyPickerColor("textColorPicker","foreColor");
 $("bgColorPicker").oninput=()=>applyPickerColor("bgColorPicker","hiliteColor");
-function enterHexColor(id,command,label){const raw=prompt(`${label} HEX 색상 코드를 입력하세요. 예: #FF0000`,$(id).value.toUpperCase());if(raw===null)return;const value=raw.trim();if(!/^#[0-9a-fA-F]{6}$/.test(value)){alert("#을 포함한 6자리 색상 코드로 입력하세요.");return}$(id).value=value;applyPickerColor(id,command)}
+function enterHexColor(id,command,label){if(!selectedEditorRange()){say("postStatus","색을 바꿀 글자를 먼저 드래그해서 선택해 주세요.");return}const raw=prompt(`${label} HEX 색상 코드를 입력하세요. 예: #FF0000`,$(id).value.toUpperCase());if(raw===null)return;const value=raw.trim();if(!/^#[0-9a-fA-F]{6}$/.test(value)){alert("#을 포함한 6자리 색상 코드로 입력하세요.");return}$(id).value=value;applyPickerColor(id,command)}
 $("textColorBtn").ondblclick=()=>enterHexColor("textColorPicker","foreColor","글씨색");
 $("bgColorBtn").ondblclick=()=>enterHexColor("bgColorPicker","hiliteColor","배경색");
 $("publish").onclick=async()=>{try{const text=editorText().trim();if(!text||text.length>200)throw Error("글은 1~200자여야 합니다.");const marks=hasP(me.uid)?collectEditorMarks().filter(m=>m.start>=0&&m.end<=text.length&&m.end>m.start):[];const tags=[...new Set([...text.matchAll(/#[가-힣A-Za-z0-9_]+/g)].map(m=>m[0]))];if(editing){const p=posts.find(p=>p.id===editing);if(!p||p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("글 수정은 작성 후 1시간 이내만 가능합니다.");if((p.editCount||0)>=5)throw Error("끼리 수정은 최대 5회까지 가능합니다.");await updateDoc(doc(db,"posts",editing),{text,tags,...(hasP(me.uid)?{marks}:{}),editCount:(p.editCount||0)+1,updatedAt:serverTimestamp()});editing=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide")}else await addDoc(collection(db,"posts"),{authorUid:me.uid,text,tags,...(hasP(me.uid)&&marks.length?{marks}:{}),createdAt:serverTimestamp(),updatedAt:serverTimestamp(),editCount:0,iced:false,ice:0,perma:false,icedAt:null});postArea.innerHTML="";editingMarks=[];savedRange=null;updateEditorCount();$("postStatus").textContent=""}catch(e){say("postStatus",err(e))}};
