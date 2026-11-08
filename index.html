@@ -221,7 +221,33 @@ syms.forEach((s)=>{const b=document.createElement("button");b.type="button";b.te
 $("postText").oninput=()=>$("count").textContent=`${$("postText").value.length} / 200자`;
 $("publish").onclick=async()=>{try{const text=$("postText").value.trim();if(!text||text.length>200)throw Error("글은 1~200자여야 합니다.");const tags=[...new Set([...text.matchAll(/#[가-힣A-Za-z0-9_]+/g)].map(m=>m[0]))];if(editing){const p=posts.find(p=>p.id===editing);if(!p||p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("글 수정은 작성 후 1시간 이내만 가능합니다.");if((p.editCount||0)>=5)throw Error("끼리 수정은 최대 5회까지 가능합니다.");await updateDoc(doc(db,"posts",editing),{text,tags,editCount:(p.editCount||0)+1,updatedAt:serverTimestamp()});editing=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide")}else await addDoc(collection(db,"posts"),{authorUid:me.uid,text,tags,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),editCount:0,iced:false,ice:0,perma:false,icedAt:null});$("postText").value="";$("count").textContent="0 / 200자";$("postStatus").textContent=""}catch(e){say("postStatus",err(e))}};
 $("cancelEdit").onclick=()=>{editing=null;$("postText").value="";$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide");$("count").textContent="0 / 200자"};
-function doSearch(){const q=norm($("search").value||"");const found=posts.filter(p=>{const who=profiles.get(p.authorUid)||{};return !q||`${p.text} ${(p.tags||[]).join(" ")} ${who.id||""} ${who.nick||""}`.toLocaleLowerCase("ko-KR").includes(q)});$("searchResults").classList.toggle("hide",!q);$("searchFeed").innerHTML=q?(found.map(p=>card(p,false)).join("")||'<p class="muted">검색 결과가 없습니다.</p>'):""}
+function doSearch(){
+  const q=norm($("search").value||"");
+  const found=posts.filter(p=>{
+    const who=profiles.get(p.authorUid)||{};
+    const postMatch=`${p.text} ${(p.tags||[]).join(" ")} ${who.id||""} ${who.nick||""}`.toLocaleLowerCase("ko-KR").includes(q);
+    const commentMatch=(comments.get(p.id)||[]).some(c=>{
+      const cw=profiles.get(c.authorUid)||{};
+      return `${c.text||""} ${cw.id||""} ${cw.nick||""}`.toLocaleLowerCase("ko-KR").includes(q);
+    });
+    return !q||postMatch||commentMatch;
+  });
+  $("searchResults").classList.toggle("hide",!q);
+  $("searchFeed").innerHTML=q?(found.map(p=>{
+    const matched=(comments.get(p.id)||[]).filter(c=>{
+      const cw=profiles.get(c.authorUid)||{};
+      return `${c.text||""} ${cw.id||""} ${cw.nick||""}`.toLocaleLowerCase("ko-KR").includes(q);
+    });
+    return card(p,false)+(matched.length?`<div class="post-comments">${matched.map(c=>`<div class="comment"><b>${esc(name(c.authorUid))}</b> <small>${time(c.createdAt)} · 검색된 댓글</small><div class="text">${link(c.text)}</div></div>`).join("")}</div>`:"");
+  }).join("")||'<p class="muted">검색 결과가 없습니다.</p>'):"";
+}
+function resetSearch(){
+  $("search").value="";
+  $("searchResults").classList.add("hide");
+  $("searchFeed").innerHTML="";
+}
+resetSearch();
+window.addEventListener("pageshow",resetSearch);
 $("searchbtn").onclick=doSearch;$("search").onkeydown=e=>{if(e.key==="Enter")doSearch()};$("clearSearch").onclick=()=>{$("search").value="";doSearch()};
 $("select").onclick=()=>{selectMode=!selectMode;$("select").textContent=selectMode?"선택 삭제 실행":"선택 삭제";if(selectMode){renderAll();return}const ids=[...document.querySelectorAll(".pick:checked")].map(x=>x.dataset.id);if(ids.length&&confirm(`${ids.length}개 글을 삭제할까요?`))Promise.all(ids.map(id=>{const p=posts.find(p=>p.id===id);return p?.authorUid===me.uid?deleteDoc(doc(db,"posts",id)):Promise.resolve()}));renderAll()};
 $("delall").onclick=async()=>{const mine=posts.filter(p=>p.authorUid===me.uid);if(!mine.length)return alert("삭제할 글이 없습니다.");if(confirm(`내 끼리 ${mine.length}개를 모두 삭제할까요?`))for(const p of mine)await deleteDoc(doc(db,"posts",p.id))};
