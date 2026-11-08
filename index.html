@@ -295,7 +295,24 @@ let savedRange=null;
 function saveEditorSelection(){const sel=getSelection();if(sel&&sel.rangeCount&&postArea.contains(sel.anchorNode))savedRange=sel.getRangeAt(0).cloneRange()}
 function restoreEditorSelection(){postArea.focus();const sel=getSelection();if(savedRange){sel.removeAllRanges();sel.addRange(savedRange)}}
 function selectedEditorRange(){restoreEditorSelection();const sel=getSelection();if(!sel||!sel.rangeCount||!postArea.contains(sel.anchorNode))return null;const r=sel.getRangeAt(0);return r.collapsed?null:r.cloneRange()}
-function finishFormatAtSelectionEnd(range){const sel=getSelection();if(!sel)return;sel.removeAllRanges();const end=range.cloneRange();end.collapse(false);sel.addRange(end);savedRange=end.cloneRange();/* 선택한 글자 뒤의 새 입력은 기본 서식으로 */document.execCommand("removeFormat",false,null);}
+function isFormatElement(el){if(!el||el.nodeType!==Node.ELEMENT_NODE)return false;const st=el.style||{};return /^(B|STRONG|I|EM|U|FONT)$/.test(el.tagName)||!!(st.fontWeight||st.fontStyle||st.textDecoration||st.color||st.backgroundColor)}
+function moveCaretOutsideFormatting(){
+ const sel=getSelection();if(!sel||!sel.rangeCount)return;
+ let r=sel.getRangeAt(0).cloneRange();r.collapse(false);let node=r.startContainer;
+ while(node&&node!==postArea){
+  const parent=node.nodeType===Node.ELEMENT_NODE?node:node.parentNode;
+  if(!parent||parent===postArea)break;
+  if(isFormatElement(parent)){
+   const tailRange=document.createRange();tailRange.setStart(r.startContainer,r.startOffset);tailRange.setEnd(parent,parent.childNodes.length);
+   const tail=tailRange.extractContents();
+   if(tail.hasChildNodes()){const right=parent.cloneNode(false);right.appendChild(tail);parent.parentNode.insertBefore(right,parent.nextSibling)}
+   r=document.createRange();r.setStartAfter(parent);r.collapse(true);node=parent.parentNode;
+   sel.removeAllRanges();sel.addRange(r);
+  }else node=parent;
+ }
+ savedRange=sel.rangeCount?sel.getRangeAt(0).cloneRange():null;
+}
+function finishFormatAtSelectionEnd(){moveCaretOutsideFormatting()}
 ["keyup","mouseup","touchend","input","focus"].forEach(ev=>postArea.addEventListener(ev,saveEditorSelection));
 document.addEventListener("selectionchange",saveEditorSelection);
 postArea.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();restoreEditorSelection();document.execCommand("insertLineBreak");saveEditorSelection();updateEditorCount()}});
@@ -329,12 +346,25 @@ function insertSymbol(s){restoreEditorSelection();if(s==="="){const txt=editorTe
 function rangeOffset(range){const pre=range.cloneRange();pre.selectNodeContents(postArea);pre.setEnd(range.startContainer,range.startOffset);return pre.toString().length}
 syms.forEach(s=>{const b=document.createElement("button");b.type="button";b.textContent=s;b.onclick=()=>insertSymbol(s);$("symbols").append(b)});
 postArea.addEventListener("input",()=>{if(!editorText()){postArea.innerHTML="";savedRange=null}updateEditorCount();saveEditorSelection()});
-document.querySelectorAll("[data-command]").forEach(b=>{b.addEventListener("mousedown",e=>e.preventDefault());b.onclick=()=>{const range=selectedEditorRange();if(!range){say("postStatus","꾸밀 글자를 먼저 드래그해서 선택해 주세요.");return}document.execCommand(b.dataset.command,false,null);finishFormatAtSelectionEnd(range);updateEditorCount();$("postStatus").textContent=""}});
-function chooseColor(kind){const range=selectedEditorRange();if(!range){say("postStatus","색을 바꿀 글자를 먼저 드래그해서 선택해 주세요.");return}const picker=$(kind==="foreColor"?"textColorPicker":"bgColorPicker");picker.click()}
+document.querySelectorAll("[data-command]").forEach(b=>{b.addEventListener("mousedown",e=>e.preventDefault());b.onclick=()=>{const range=selectedEditorRange();if(!range){say("postStatus","꾸밀 글자를 먼저 드래그해서 선택해 주세요.");return}document.execCommand(b.dataset.command,false,null);finishFormatAtSelectionEnd();updateEditorCount();$("postStatus").textContent=""}});
+let pendingColorRange=null;
+function chooseColor(kind){
+ const range=selectedEditorRange();if(!range){say("postStatus","색을 바꿀 글자를 먼저 드래그해서 선택해 주세요.");return}
+ const id=kind==="foreColor"?"textColorPicker":"bgColorPicker",picker=$(id);
+ // 같은 색을 다시 골라도 적용되도록, picker를 열기 전에 현재 색을 먼저 적용한다.
+ document.execCommand(kind,false,picker.value);
+ const sel=getSelection();pendingColorRange=sel&&sel.rangeCount?sel.getRangeAt(0).cloneRange():range.cloneRange();
+ finishFormatAtSelectionEnd();picker.click();
+}
 $("textColorBtn").addEventListener("mousedown",e=>e.preventDefault());$("bgColorBtn").addEventListener("mousedown",e=>e.preventDefault());
 $("textColorBtn").onclick=()=>chooseColor("foreColor");$("bgColorBtn").onclick=()=>chooseColor("hiliteColor");
 ["textColorPicker","bgColorPicker"].forEach(id=>$(id).addEventListener("click",e=>e.stopPropagation()));
-function applyPickerColor(id,command){const range=selectedEditorRange();if(!range){say("postStatus","색을 바꿀 글자를 먼저 드래그해서 선택해 주세요.");return}document.execCommand(command,false,$(id).value);finishFormatAtSelectionEnd(range);$("postStatus").textContent=""}
+function applyPickerColor(id,command){
+ let range=pendingColorRange;
+ if(!range||!postArea.contains(range.commonAncestorContainer)){range=selectedEditorRange()}
+ if(!range){say("postStatus","색을 바꿀 글자를 먼저 드래그해서 선택해 주세요.");return}
+ const sel=getSelection();sel.removeAllRanges();sel.addRange(range);document.execCommand(command,false,$(id).value);pendingColorRange=null;finishFormatAtSelectionEnd();$("postStatus").textContent="";
+}
 $("textColorPicker").oninput=()=>applyPickerColor("textColorPicker","foreColor");
 $("bgColorPicker").oninput=()=>applyPickerColor("bgColorPicker","hiliteColor");
 function enterHexColor(id,command,label){if(!selectedEditorRange()){say("postStatus","색을 바꿀 글자를 먼저 드래그해서 선택해 주세요.");return}const raw=prompt(`${label} HEX 색상 코드를 입력하세요. 예: #FF0000`,$(id).value.toUpperCase());if(raw===null)return;const value=raw.trim();if(!/^#[0-9a-fA-F]{6}$/.test(value)){alert("#을 포함한 6자리 색상 코드로 입력하세요.");return}$(id).value=value;applyPickerColor(id,command)}
