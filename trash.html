@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="ko">
 <head>
@@ -22,7 +21,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .row>*{flex:1;min-width:0}
 .meta{font-size:13px;color:#64748b}
 .empty{padding:18px;text-align:center;color:#64748b}
-.trash-check{width:20px;height:20px;flex:0 0 20px;margin:0 8px 0 0;vertical-align:middle}
+.trash-check{width:20px;height:20px;flex:0 0 20px;margin:0 8px 0 0;vertical-align:middle;cursor:pointer}
 .item-head{display:flex;align-items:center;gap:6px}
 .item-head .meta{flex:1}
 .bulk-tools{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
@@ -31,6 +30,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 </head>
 <body>
 <main class="wrap">
+
 <h1>끼리끼리 <small>휴지통</small></h1>
 
 <section class="card">
@@ -56,10 +56,14 @@ button:disabled{opacity:.4;cursor:not-allowed}
 <h3>선택 관리</h3>
 <div class="bulk-tools">
 <button id="selectAll">전체 선택</button>
-<button id="deleteSelected" class="permanent">선택 영구 삭제</button>
+<button id="deleteSelected" class="permanent" disabled>선택 영구 삭제</button>
 </div>
-<p class="muted">체크한 항목만 영구 삭제됩니다. 30일이 지나지 않은 항목은 선택할 수 없습니다.</p>
+<p class="muted">
+체크박스는 삭제 직후에도 선택할 수 있습니다.
+단, 삭제한 지 30일이 지난 항목만 영구 삭제할 수 있습니다.
+</p>
 </section>
+
 </main>
 
 <script type="module">
@@ -68,7 +72,7 @@ import{getAuth,onAuthStateChanged}from"https://www.gstatic.com/firebasejs/13.1.0
 import{getFirestore,doc,getDoc,updateDoc,deleteDoc,collection,getDocs,onSnapshot,serverTimestamp,writeBatch}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 
 const app=initializeApp({
-apiKey:"AIzaSyBiV_4mm2TbcC4bJsLkJpcXiUztZGFYBL0",
+apiKey:"AIzaSyBiV_4mm2TbcC4bJsLkJpcXiUztGFYBL0",
 authDomain:"kkiri-kkiri-sns.firebaseapp.com",
 projectId:"kkiri-kkiri-sns",
 storageBucket:"kkiri-kkiri-sns.firebasestorage.app",
@@ -77,25 +81,44 @@ appId:"1:739393951571:web:7c601229be7c13d1e7b3a6"
 });
 
 const auth=getAuth(app),db=getFirestore(app),$=id=>document.getElementById(id);
+
 const DAY=86400000,KEEP=30*DAY;
 
 let me=null,posts=[],commentsByPost=new Map();
 let unsubPosts=null,unsubComments=new Map(),busy=false;
 
-function ms(v){return v?.toMillis?v.toMillis():0}
+function ms(v){
+return v?.toMillis?v.toMillis():0;
+}
+
 function esc(s){
 return String(s??"").replace(/[&<>"']/g,c=>({
-"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+"&":"&amp;",
+"<":"&lt;",
+">":"&gt;",
+'"':"&quot;",
+"'":"&#39;"
 }[c]));
 }
+
 function stamp(v){
 return ms(v)?v.toDate().toLocaleString("ko-KR",{
-year:"numeric",month:"2-digit",day:"2-digit",
-hour:"2-digit",minute:"2-digit",hour12:false
+year:"numeric",
+month:"2-digit",
+day:"2-digit",
+hour:"2-digit",
+minute:"2-digit",
+hour12:false
 }):"시간 확인 불가";
 }
-function expired(v){return ms(v)>0&&Date.now()-ms(v)>=KEEP}
-function say(t){$("status").textContent=t}
+
+function expired(v){
+return ms(v)>0&&Date.now()-ms(v)>=KEEP;
+}
+
+function say(t){
+$("status").textContent=t;
+}
 
 function syncComments(){
 const ids=new Set(posts.map(p=>p.id));
@@ -113,7 +136,10 @@ if(!unsubComments.has(p.id)){
 unsubComments.set(p.id,onSnapshot(
 collection(db,"posts",p.id,"comments"),
 snap=>{
-commentsByPost.set(p.id,snap.docs.map(d=>({id:d.id,...d.data()})));
+commentsByPost.set(
+p.id,
+snap.docs.map(d=>({id:d.id,...d.data()}))
+);
 render();
 cleanupExpired();
 },
@@ -124,11 +150,17 @@ e=>console.warn(e)
 }
 
 async function purgePost(p){
-const snap=await getDocs(collection(db,"posts",p.id,"comments"));
+const snap=await getDocs(
+collection(db,"posts",p.id,"comments")
+);
 
 for(let i=0;i<snap.docs.length;i+=400){
 const batch=writeBatch(db);
-snap.docs.slice(i,i+400).forEach(d=>batch.delete(d.ref));
+
+snap.docs.slice(i,i+400).forEach(d=>{
+batch.delete(d.ref);
+});
+
 await batch.commit();
 }
 
@@ -137,13 +169,18 @@ await deleteDoc(doc(db,"posts",p.id));
 
 async function cleanupExpired(){
 if(busy||!me)return;
+
 busy=true;
 
 try{
 const purgedParents=new Set();
 
 for(const p of posts){
-if(p.authorUid===me.uid&&p.deletedAt&&expired(p.deletedAt)){
+if(
+p.authorUid===me.uid&&
+p.deletedAt&&
+expired(p.deletedAt)
+){
 await purgePost(p);
 purgedParents.add(p.id);
 }
@@ -155,11 +192,18 @@ if(purgedParents.has(p.id))continue;
 const cs=commentsByPost.get(p.id)||[];
 
 for(const c of cs){
-if(c.authorUid===me.uid&&c.deletedAt&&expired(c.deletedAt)){
-await deleteDoc(doc(db,"posts",p.id,"comments",c.id));
+if(
+c.authorUid===me.uid&&
+c.deletedAt&&
+expired(c.deletedAt)
+){
+await deleteDoc(
+doc(db,"posts",p.id,"comments",c.id)
+);
 }
 }
 }
+
 }catch(e){
 console.warn("30일 지난 휴지통 항목 정리 실패",e);
 }finally{
@@ -191,19 +235,36 @@ ms(b.comment.deletedAt)-ms(a.comment.deletedAt)
 $("postList").innerHTML=deletedPosts.map(p=>`
 <article class="item">
 <div class="item-head">
-<input class="trash-check" type="checkbox"
-data-kind="post" data-id="${p.id}"
-${expired(p.deletedAt)?"":"disabled"}>
+<input
+class="trash-check"
+type="checkbox"
+data-kind="post"
+data-id="${p.id}"
+>
 <div class="meta">삭제일: ${stamp(p.deletedAt)}</div>
 </div>
+
 <p>${esc(p.text)}</p>
+
 <div class="meta">
-${expired(p.deletedAt)?"30일 경과 · 영구 삭제 가능":"30일 보관 기간"}
+${expired(p.deletedAt)
+?"30일 경과 · 영구 삭제 가능"
+:"30일 보관 기간 · 영구 삭제 불가"}
 </div>
+
 <div class="row">
-<button class="restore" data-action="restore-post" data-id="${p.id}">복원</button>
-<button class="permanent" data-action="purge-post" data-id="${p.id}"
-${expired(p.deletedAt)?"":"disabled"}>영구 삭제</button>
+<button
+class="restore"
+data-action="restore-post"
+data-id="${p.id}"
+>복원</button>
+
+<button
+class="permanent"
+data-action="purge-post"
+data-id="${p.id}"
+${expired(p.deletedAt)?"":"disabled"}
+>영구 삭제</button>
 </div>
 </article>
 `).join("")||'<div class="empty">휴지통에 게시글이 없습니다.</div>';
@@ -211,108 +272,210 @@ ${expired(p.deletedAt)?"":"disabled"}>영구 삭제</button>
 $("commentList").innerHTML=deletedComments.map(({post:p,comment:c})=>`
 <article class="item">
 <div class="item-head">
-<input class="trash-check" type="checkbox"
-data-kind="comment" data-post="${p.id}" data-id="${c.id}"
-${expired(c.deletedAt)?"":"disabled"}>
+<input
+class="trash-check"
+type="checkbox"
+data-kind="comment"
+data-post="${p.id}"
+data-id="${c.id}"
+>
 <div class="meta">삭제일: ${stamp(c.deletedAt)}</div>
 </div>
-<div class="meta">게시글: ${esc(p.text||"").slice(0,80)}${(p.text||"").length>80?"…":""}</div>
-<p>${esc(c.text)}</p>
+
 <div class="meta">
-${expired(c.deletedAt)?"30일 경과 · 영구 삭제 가능":"30일 보관 기간"}
+게시글: ${esc(p.text||"").slice(0,80)}${(p.text||"").length>80?"…":""}
 </div>
+
+<p>${esc(c.text)}</p>
+
+<div class="meta">
+${expired(c.deletedAt)
+?"30일 경과 · 영구 삭제 가능"
+:"30일 보관 기간 · 영구 삭제 불가"}
+</div>
+
 <div class="row">
-<button class="restore" data-action="restore-comment" data-post="${p.id}" data-id="${c.id}">복원</button>
-<button class="permanent" data-action="purge-comment" data-post="${p.id}" data-id="${c.id}"
-${expired(c.deletedAt)?"":"disabled"}>영구 삭제</button>
+<button
+class="restore"
+data-action="restore-comment"
+data-post="${p.id}"
+data-id="${c.id}"
+>복원</button>
+
+<button
+class="permanent"
+data-action="purge-comment"
+data-post="${p.id}"
+data-id="${c.id}"
+${expired(c.deletedAt)?"":"disabled"}
+>영구 삭제</button>
 </div>
 </article>
 `).join("")||'<div class="empty">휴지통에 댓글이 없습니다.</div>';
 
 const total=deletedPosts.length+deletedComments.length;
+
 $("restoreAll").disabled=!total;
-$("selectAll").disabled=!document.querySelector(".trash-check:not(:disabled)");
-$("deleteSelected").disabled=!document.querySelector(".trash-check:checked");
+
+const boxes=[...document.querySelectorAll(".trash-check")];
+
+$("selectAll").disabled=boxes.length===0;
+
+$("deleteSelected").disabled=
+!boxes.some(x=>x.checked);
+
 }
 
-$("back").onclick=()=>location.href="main.html";
+$("back").onclick=()=>{
+location.href="main.html";
+};
 
 $("restoreAll").onclick=async()=>{
 if(!confirm("휴지통의 게시글과 댓글을 모두 복원할까요?"))return;
 
 try{
 for(const p of posts){
+
 if(p.authorUid===me.uid&&p.deletedAt){
 await updateDoc(doc(db,"posts",p.id),{
-deletedAt:null,deletedBy:null,updatedAt:serverTimestamp()
+deletedAt:null,
+deletedBy:null,
+updatedAt:serverTimestamp()
 });
 }
 
 for(const c of commentsByPost.get(p.id)||[]){
 if(c.authorUid===me.uid&&c.deletedAt){
-await updateDoc(doc(db,"posts",p.id,"comments",c.id),{
-deletedAt:null,deletedBy:null,updatedAt:serverTimestamp()
-});
+await updateDoc(
+doc(db,"posts",p.id,"comments",c.id),
+{
+deletedAt:null,
+deletedBy:null,
+updatedAt:serverTimestamp()
+}
+);
 }
 }
 }
+
 say("전체 복원이 완료됐습니다.");
+
 }catch(e){
 say("복원 실패: "+(e.message||e));
 }
 };
 
 $("selectAll").onclick=()=>{
-const boxes=[...document.querySelectorAll(".trash-check:not(:disabled)")];
-const allChecked=boxes.length>0&&boxes.every(x=>x.checked);
-boxes.forEach(x=>x.checked=!allChecked);
-$("selectAll").textContent=allChecked?"전체 선택":"선택 해제";
-$("deleteSelected").disabled=!boxes.some(x=>x.checked);
+const boxes=[...document.querySelectorAll(".trash-check")];
+
+const allChecked=
+boxes.length>0&&boxes.every(x=>x.checked);
+
+boxes.forEach(x=>{
+x.checked=!allChecked;
+});
+
+$("selectAll").textContent=
+allChecked?"전체 선택":"선택 해제";
+
+$("deleteSelected").disabled=
+!boxes.some(x=>x.checked);
 };
 
 $("deleteSelected").onclick=async()=>{
-const selected=[...document.querySelectorAll(".trash-check:checked")];
+const selected=[
+...document.querySelectorAll(".trash-check:checked")
+];
+
 if(!selected.length){
 say("영구 삭제할 항목을 먼저 선택하세요.");
 return;
 }
 
-const postIds=new Set(
-selected.filter(x=>x.dataset.kind==="post").map(x=>x.dataset.id)
+const selectedPosts=selected.filter(
+x=>x.dataset.kind==="post"
 );
 
-const commentItems=selected.filter(x=>
-x.dataset.kind==="comment"&&!postIds.has(x.dataset.post)
+const selectedComments=selected.filter(
+x=>x.dataset.kind==="comment"
 );
 
-const postItems=selected.filter(x=>x.dataset.kind==="post");
+const eligiblePosts=selectedPosts.filter(box=>{
+const p=posts.find(x=>x.id===box.dataset.id);
+return p&&expired(p.deletedAt);
+});
 
-if(!confirm(
-`게시글 ${postItems.length}개와 댓글 ${commentItems.length}개를 영구 삭제할까요?\n삭제한 항목은 복구할 수 없습니다.`
-))return;
+const eligiblePostIds=new Set(
+eligiblePosts.map(x=>x.dataset.id)
+);
+
+const eligibleComments=selectedComments.filter(box=>{
+const postId=box.dataset.post;
+
+if(eligiblePostIds.has(postId))return false;
+
+const c=(commentsByPost.get(postId)||[])
+.find(x=>x.id===box.dataset.id);
+
+return c&&expired(c.deletedAt);
+});
+
+const eligibleCount=
+eligiblePosts.length+eligibleComments.length;
+
+const skippedCount=
+selected.length-eligibleCount;
+
+if(eligibleCount===0){
+say("선택한 항목 중 삭제 후 30일이 지난 항목이 없습니다.");
+return;
+}
+
+let message=
+`게시글 ${eligiblePosts.length}개와 댓글 ${eligibleComments.length}개를 영구 삭제할까요?\n`;
+
+if(skippedCount>0){
+message+=`30일이 지나지 않은 항목 ${skippedCount}개는 삭제하지 않습니다.\n`;
+}
+
+message+="영구 삭제한 항목은 복구할 수 없습니다.";
+
+if(!confirm(message))return;
 
 try{
 $("deleteSelected").disabled=true;
+
 let count=0;
 
-for(const box of postItems){
+for(const box of eligiblePosts){
 const p=posts.find(x=>x.id===box.dataset.id);
+
 if(!p||!expired(p.deletedAt))continue;
+
 await purgePost(p);
 count++;
 }
 
-for(const box of commentItems){
+for(const box of eligibleComments){
 const postId=box.dataset.post;
-const c=(commentsByPost.get(postId)||[]).find(x=>x.id===box.dataset.id);
+
+const c=(commentsByPost.get(postId)||[])
+.find(x=>x.id===box.dataset.id);
+
 if(!c||!expired(c.deletedAt))continue;
-await deleteDoc(doc(db,"posts",postId,"comments",c.id));
+
+await deleteDoc(
+doc(db,"posts",postId,"comments",c.id)
+);
+
 count++;
 }
 
 say(`${count}개 항목을 영구 삭제했습니다.`);
+
 }catch(e){
 say("영구 삭제 실패: "+(e.message||e));
+
 }finally{
 render();
 }
@@ -327,6 +490,7 @@ $("deleteSelected").disabled=
 
 document.addEventListener("click",async e=>{
 const b=e.target.closest("button[data-action]");
+
 if(!b)return;
 
 const {action,id,post}=b.dataset;
@@ -336,40 +500,61 @@ b.disabled=true;
 
 if(action==="restore-post"){
 await updateDoc(doc(db,"posts",id),{
-deletedAt:null,deletedBy:null,updatedAt:serverTimestamp()
+deletedAt:null,
+deletedBy:null,
+updatedAt:serverTimestamp()
 });
 }
 
 if(action==="restore-comment"){
-await updateDoc(doc(db,"posts",post,"comments",id),{
-deletedAt:null,deletedBy:null,updatedAt:serverTimestamp()
-});
+await updateDoc(
+doc(db,"posts",post,"comments",id),
+{
+deletedAt:null,
+deletedBy:null,
+updatedAt:serverTimestamp()
+}
+);
 }
 
 if(action==="purge-post"){
 const p=posts.find(x=>x.id===id);
+
 if(!p||!expired(p.deletedAt)){
 throw Error("삭제 후 30일이 지나야 영구 삭제할 수 있습니다.");
 }
-if(!confirm("게시글과 그 안의 댓글을 모두 영구 삭제할까요? 복구할 수 없습니다."))return;
+
+if(!confirm(
+"게시글과 그 안의 댓글을 모두 영구 삭제할까요? 복구할 수 없습니다."
+))return;
+
 await purgePost(p);
 }
 
 if(action==="purge-comment"){
 const p=posts.find(x=>x.id===post);
-const c=(commentsByPost.get(post)||[]).find(x=>x.id===id);
+
+const c=(commentsByPost.get(post)||[])
+.find(x=>x.id===id);
 
 if(!p||!c||!expired(c.deletedAt)){
 throw Error("댓글 삭제 후 30일이 지나야 영구 삭제할 수 있습니다.");
 }
 
-if(!confirm("이 댓글을 영구 삭제할까요? 복구할 수 없습니다."))return;
-await deleteDoc(doc(db,"posts",post,"comments",id));
+if(!confirm(
+"이 댓글을 영구 삭제할까요? 복구할 수 없습니다."
+))return;
+
+await deleteDoc(
+doc(db,"posts",post,"comments",id)
+);
 }
 
 say("처리가 완료됐습니다.");
+
 }catch(err){
 say("처리 실패: "+(err.message||err));
+
 }finally{
 b.disabled=false;
 }
@@ -385,20 +570,30 @@ return;
 
 try{
 const s=await getDoc(doc(db,"users",u.uid));
-if(!s.exists())throw Error("계정 정보를 찾을 수 없습니다.");
+
+if(!s.exists()){
+throw Error("계정 정보를 찾을 수 없습니다.");
+}
 
 unsubPosts=onSnapshot(
 collection(db,"posts"),
+
 async snap=>{
-posts=snap.docs.map(d=>({id:d.id,...d.data()}));
+posts=snap.docs.map(d=>({
+id:d.id,
+...d.data()
+}));
+
 syncComments();
 render();
 await cleanupExpired();
 },
+
 e=>say("불러오기 실패: "+e.message)
 );
 
 say("휴지통을 불러왔습니다.");
+
 }catch(e){
 say(e.message||String(e));
 }
