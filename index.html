@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="ko">
 <head>
@@ -202,17 +201,21 @@ button[data-ice]:disabled{opacity:1;background:#B9E7FF;cursor:not-allowed}
 </div>
 
 <script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
+
 import{
 getAuth,
 createUserWithEmailAndPassword,
 signInWithCustomToken,
 signOut,
-onAuthStateChanged,
-setPersistence,
-browserLocalPersistence
+onAuthStateChanged
 }from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
-import{getFirestore,doc,getDoc,updateDoc,deleteDoc,setDoc,collection,addDoc,query,orderBy,onSnapshot,serverTimestamp,runTransaction,getDocs,writeBatch,limit}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 
+import{
+getFirestore,doc,getDoc,updateDoc,deleteDoc,setDoc,
+collection,addDoc,query,orderBy,onSnapshot,
+serverTimestamp,runTransaction,getDocs,writeBatch,limit
+}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 const app=initializeApp({
 apiKey:"AIzaSyBiV_4mm2TbcC4bJsLkJpcXiUztZGFYBL0",
 authDomain:"kkiri-kkiri-sns.firebaseapp.com",
