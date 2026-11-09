@@ -44,11 +44,26 @@ button:disabled{opacity:.4}button[data-ice]{background:#B9E7FF}button[data-ice]:
 .comment-modal-actions button{flex:0 0 auto}
 #commentModalStatus{white-space:pre-wrap;margin-top:8px;color:#b91c1c}
 @media(max-width:480px){.wrap{padding:8px}.card,.post{padding:10px}.symbols{grid-template-columns:repeat(8,1fr)}}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.topbar h1{margin:4px 0}
+.trash-icon{
+  flex:0 0 auto;
+  width:46px;height:42px;
+  margin:0;
+  padding:5px;
+  background:#bfdbfe;
+  font-size:23px;
+  display:flex;
+  align-items:center;
+  justify-content:center
+}
 </style>
 </head>
 <body>
-<main class="wrap">
-<h1>끼리끼리 <small>KKiRiKKiRi</small></h1>
+<div class="topbar">
+  <h1>끼리끼리 <small>KKiRiKKiRi</small></h1>
+  <button id="openTrash" class="trash-icon" type="button" title="휴지통" aria-label="휴지통">🗑️</button>
+</div>
 <p class="muted">끼리끼리 SNS</p>
 
 <section class="card" id="authCard">
@@ -102,7 +117,10 @@ button:disabled{opacity:.4}button[data-ice]{background:#B9E7FF}button[data-ice]:
 </section>
 
 <section class="card hide" id="mineScreen">
-<h3 id="resultTitle">내 끼리</h3><div id="mineTools" class="hide"><button id="select">선택 삭제</button><button id="delall">전체 삭제</button><button id="openTrash" style="background:#bfdbfe">휴지통</button></div><div id="feed"><p class="muted">내 끼리가 아직 없습니다.</p></div>
+<h3 id="resultTitle">내 끼리</h3><<div id="mineTools" class="hide">
+  <button id="select">선택 삭제</button>
+  <button id="delall">전체 삭제</button>
+</div><button id="openTrash" style="background:#bfdbfe">휴지통</button></div><div id="feed"><p class="muted">내 끼리가 아직 없습니다.</p></div>
 </section>
 
 <section class="card hide" id="allScreen"><h3>전체 끼리</h3><div id="allFeed"></div></section>
