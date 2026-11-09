@@ -582,45 +582,46 @@ say("처리 실패: "+(err.message||err));
 b.disabled=false;
 }
 });
-
-onAuthStateChanged(auth,async u=>{
-me=u;
-
-if(!u){
-location.href="index.html";
-return;
-}
-
 try{
-const s=await getDoc(doc(db,"users",u.uid));
+  await auth.authStateReady();
 
-if(!s.exists()){
-throw Error("계정 정보를 찾을 수 없습니다.");
-}
+  const u=auth.currentUser;
+  me=u;
 
-unsubPosts=onSnapshot(
-collection(db,"posts"),
+  if(!u){
+    say("로그인 상태를 확인하지 못했어. 메인 페이지에서 다시 로그인해 줘.");
+    return;
+  }
 
-async snap=>{
-posts=snap.docs.map(d=>({
-id:d.id,
-...d.data()
-}));
+  const s=await getDoc(doc(db,"users",u.uid));
 
-syncComments();
-render();
-await cleanupExpired();
-},
+  if(!s.exists()){
+    throw Error("계정 정보를 찾을 수 없습니다.");
+  }
 
-e=>say("불러오기 실패: "+e.message)
-);
+  unsubPosts=onSnapshot(
+    collection(db,"posts"),
 
-say("휴지통을 불러왔습니다.");
+    async snap=>{
+      posts=snap.docs.map(d=>({
+        id:d.id,
+        ...d.data()
+      }));
+
+      syncComments();
+      render();
+      await cleanupExpired();
+    },
+
+    e=>say("불러오기 실패: "+e.message)
+  );
+
+  say("휴지통을 불러왔습니다.");
 
 }catch(e){
-say(e.message||String(e));
+  say("휴지통 오류: "+(e.message||e));
 }
-});
+
 </script>
 </body>
 </html>
