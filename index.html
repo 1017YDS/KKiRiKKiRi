@@ -224,7 +224,6 @@ appId:"1:739393951571:web:7c601229be7c13d1e7b3a6"
 
 const auth=getAuth(app),db=getFirestore(app);
 
-await setPersistence(auth,browserLocalPersistence);
 const WORKER_URL="https://kkirikkiri-auth.hiyds1.workers.dev";
 const $=id=>document.getElementById(id);
 const ID=/^[가-힣A-Za-z][가-힣A-Za-z0-9]{4,9}$/;
