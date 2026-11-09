@@ -582,45 +582,45 @@ say("처리 실패: "+(err.message||err));
 b.disabled=false;
 }
 });
-try{
-  await auth.authStateReady();
+(async()=>{
+  try{
+    await auth.authStateReady();
 
-  const u=auth.currentUser;
-  me=u;
+    const u=auth.currentUser;
+    me=u;
 
-  if(!u){
-    say("로그인 상태를 확인하지 못했어. 메인 페이지에서 다시 로그인해 줘.");
-    return;
+    if(!u){
+      say("로그인 상태를 확인하지 못했어. 메인 페이지에서 다시 로그인해 줘.");
+      return;
+    }
+
+    const s=await getDoc(doc(db,"users",u.uid));
+
+    if(!s.exists()){
+      throw Error("계정 정보를 찾을 수 없습니다.");
+    }
+
+    unsubPosts=onSnapshot(
+      collection(db,"posts"),
+      async snap=>{
+        posts=snap.docs.map(d=>({
+          id:d.id,
+          ...d.data()
+        }));
+
+        syncComments();
+        render();
+        await cleanupExpired();
+      },
+      e=>say("불러오기 실패: "+e.message)
+    );
+
+    say("휴지통을 불러왔습니다.");
+
+  }catch(e){
+    say("휴지통 오류: "+(e.message||e));
   }
-
-  const s=await getDoc(doc(db,"users",u.uid));
-
-  if(!s.exists()){
-    throw Error("계정 정보를 찾을 수 없습니다.");
-  }
-
-  unsubPosts=onSnapshot(
-    collection(db,"posts"),
-
-    async snap=>{
-      posts=snap.docs.map(d=>({
-        id:d.id,
-        ...d.data()
-      }));
-
-      syncComments();
-      render();
-      await cleanupExpired();
-    },
-
-    e=>say("불러오기 실패: "+e.message)
-  );
-
-  say("휴지통을 불러왔습니다.");
-
-}catch(e){
-  say("휴지통 오류: "+(e.message||e));
-}
+})();
 
 </script>
 </body>
