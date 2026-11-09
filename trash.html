@@ -88,55 +88,24 @@ onSnapshot,
 serverTimestamp,
 writeBatch
 }from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
-import{
-getAuth,
-try{
-  await setPersistence(auth,browserLocalPersistence);
-}catch(e){
-  say("로그인 유지 설정 실패: "+(e.message||e));
-}
-
-onAuthStateChanged(auth,async u=>{
-  me=u;
-
-  if(!u){
-    say("로그인 상태를 확인하지 못했어. 메인으로 이동합니다.");
-    location.href="index.html";
-    return;
-  }
-
-  try{
-    const s=await getDoc(doc(db,"users",u.uid));
-
-    if(!s.exists()){
-      throw Error("계정 정보를 찾을 수 없습니다.");
-    }
-
-    unsubPosts=onSnapshot(
-      collection(db,"posts"),
-      async snap=>{
-        posts=snap.docs.map(d=>({
-          id:d.id,
-          ...d.data()
-        }));
-
-        syncComments();
-        render();
-        await cleanupExpired();
-      },
-      e=>say("불러오기 실패: "+e.message)
-    );
-
-    say("휴지통을 불러왔습니다.");
-
-  }catch(e){
-    say(e.message||String(e));
-  }
+const app=initializeApp({
+apiKey:"AIzaSyBiV_4mm2TbcC4bJsLkJpcXiUztGFYBL0",
+authDomain:"kkiri-kkiri-sns.firebaseapp.com",
+projectId:"kkiri-kkiri-sns",
+storageBucket:"kkiri-kkiri-sns.firebasestorage.app",
+messagingSenderId:"739393951571",
+appId:"1:739393951571:web:7c601229be7c13d1e7b3a6"
 });
 
 const auth=getAuth(app),db=getFirestore(app),$=id=>document.getElementById(id);
 
 const DAY=86400000,KEEP=30*DAY;
+
+  try{
+await setPersistence(auth,browserLocalPersistence);
+}catch(e){
+say("로그인 유지 설정 실패: "+(e.message||e));
+}
 
 let me=null,posts=[],commentsByPost=new Map();
 let unsubPosts=null,unsubComments=new Map(),busy=false;
