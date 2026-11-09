@@ -68,7 +68,12 @@ button:disabled{opacity:.4;cursor:not-allowed}
 
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
-import{getAuth,onAuthStateChanged}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+import{
+getAuth,
+onAuthStateChanged,
+setPersistence,
+browserLocalPersistence
+}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import{getFirestore,doc,getDoc,updateDoc,deleteDoc,collection,getDocs,onSnapshot,serverTimestamp,writeBatch}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 
 const app=initializeApp({
@@ -81,6 +86,8 @@ appId:"1:739393951571:web:7c601229be7c13d1e7b3a6"
 });
 
 const auth=getAuth(app),db=getFirestore(app),$=id=>document.getElementById(id);
+
+await setPersistence(auth,browserLocalPersistence);
 
 const DAY=86400000,KEEP=30*DAY;
 
