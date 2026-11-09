@@ -68,6 +68,26 @@ button:disabled{opacity:.4;cursor:not-allowed}
 
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
+
+import{
+getAuth,
+onAuthStateChanged,
+setPersistence,
+browserLocalPersistence
+}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+
+import{
+getFirestore,
+doc,
+getDoc,
+updateDoc,
+deleteDoc,
+collection,
+getDocs,
+onSnapshot,
+serverTimestamp,
+writeBatch
+}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import{
 getAuth,
 try{
@@ -94,7 +114,6 @@ onAuthStateChanged(auth,async u=>{
 
     unsubPosts=onSnapshot(
       collection(db,"posts"),
-
       async snap=>{
         posts=snap.docs.map(d=>({
           id:d.id,
@@ -105,7 +124,6 @@ onAuthStateChanged(auth,async u=>{
         render();
         await cleanupExpired();
       },
-
       e=>say("불러오기 실패: "+e.message)
     );
 
