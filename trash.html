@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>끼리끼리 휴지통</title>
+<style>
+:root{--ink:#1e293b;--blue:#bfdbfe;--green:#bbf7d0;--red:#fecaca}
+*{box-sizing:border-box}body{margin:0;background:#60a5fa;color:var(--ink);font-family:Arial,'Malgun Gothic',sans-serif}
+.wrap{max-width:760px;margin:auto;padding:14px}.card,.item{background:white;border:2px solid var(--ink);border-radius:12px;padding:14px;margin:12px 0;box-shadow:1px 3px 0 var(--ink)}
+h1{margin:4px 0}small,.muted{color:#64748b}.item p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;margin:8px 0}
+button{font:inherit;font-weight:bold;border:2px solid var(--ink);border-radius:7px;padding:8px 10px;margin:3px;cursor:pointer;background:#e5e7eb;color:var(--ink)}
+button.restore{background:var(--green)}button.permanent{background:var(--red)}button:disabled{opacity:.4;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.row>*{flex:1;min-width:0}.meta{font-size:13px;color:#64748b}.empty{padding:18px;text-align:center;color:#64748b}
+</style>
+</head>
+<body><main class="wrap">
+<h1>끼리끼리 <small>휴지통</small></h1>
+<section class="card"><p>휴지통에 보관된 글과 댓글입니다. 삭제한 날부터 30일이 지나면 영구 삭제 대상이 됩니다.</p>
+<div class="row"><button id="back">메인으로</button><button id="restoreAll" class="restore">전체 복원</button></div><p id="status" class="muted">불러오는 중...</p></section>
+<section class="card"><h3>삭제한 게시글</h3><div id="postList"></div></section>
+<section class="card"><h3>삭제한 댓글</h3><div id="commentList"></div></section>
+</main>
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
+import{getAuth,onAuthStateChanged}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+import{getFirestore,doc,getDoc,updateDoc,deleteDoc,collection,getDocs,onSnapshot,serverTimestamp,writeBatch}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
+const app=initializeApp({apiKey:"AIzaSyBiV_4mm2TbcC4bJsLkJpcXiUztZGFYBL0",authDomain:"kkiri-kkiri-sns.firebaseapp.com",projectId:"kkiri-kkiri-sns",storageBucket:"kkiri-kkiri-sns.firebasestorage.app",messagingSenderId:"739393951571",appId:"1:739393951571:web:7c601229be7c13d1e7b3a6"});
+const auth=getAuth(app),db=getFirestore(app),$=id=>document.getElementById(id),DAY=86400000,KEEP=30*DAY;
+let me=null,posts=[],commentsByPost=new Map(),unsubPosts=null,unsubComments=new Map(),busy=false;
+function ms(v){return v?.toMillis?v.toMillis():0}function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function stamp(v){return ms(v)?v.toDate().toLocaleString("ko-KR",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}):"시간 확인 불가"}
+function expired(v){return ms(v)>0&&Date.now()-ms(v)>=KEEP}
+function say(t){$("status").textContent=t}
+function syncComments(){const ids=new Set(posts.map(p=>p.id));for(const [id,fn]of unsubComments)if(!ids.has(id)){fn();unsubComments.delete(id);commentsByPost.delete(id)}for(const p of posts)if(!unsubComments.has(p.id)){unsubComments.set(p.id,onSnapshot(collection(db,"posts",p.id,"comments"),snap=>{commentsByPost.set(p.id,snap.docs.map(d=>({id:d.id,...d.data()})));render();cleanupExpired()},e=>console.warn(e)))}}
+async function purgePost(p){const snap=await getDocs(collection(db,"posts",p.id,"comments"));for(let i=0;i<snap.docs.length;i+=400){const batch=writeBatch(db);snap.docs.slice(i,i+400).forEach(d=>batch.delete(d.ref));await batch.commit()}await deleteDoc(doc(db,"posts",p.id))}
+async function cleanupExpired(){if(busy)return;busy=true;try{const purgedParents=new Set();for(const p of posts){if(p.authorUid===me.uid&&p.deletedAt&&expired(p.deletedAt)){await purgePost(p);purgedParents.add(p.id)}}for(const p of posts){if(purgedParents.has(p.id))continue;const cs=commentsByPost.get(p.id)||[];for(const c of cs){if(c.authorUid===me.uid&&c.deletedAt&&expired(c.deletedAt)){await deleteDoc(doc(db,"posts",p.id,"comments",c.id))}}}}catch(e){console.warn("30일 지난 휴지통 항목 정리 실패",e)}finally{busy=false}}
+function render(){if(!me)return;const deletedPosts=posts.filter(p=>p.authorUid===me.uid&&p.deletedAt).sort((a,b)=>ms(b.deletedAt)-ms(a.deletedAt));const deletedComments=[];for(const p of posts){for(const c of commentsByPost.get(p.id)||[]){if(c.authorUid===me.uid&&c.deletedAt)deletedComments.push({post:p,comment:c})}}deletedComments.sort((a,b)=>ms(b.comment.deletedAt)-ms(a.comment.deletedAt));
+$("postList").innerHTML=deletedPosts.map(p=>`<article class="item"><div class="meta">삭제일: ${stamp(p.deletedAt)}</div><p>${esc(p.text)}</p><div class="meta">${expired(p.deletedAt)?"30일 경과 · 영구 삭제 가능":"30일 보관 기간"}</div><div class="row"><button class="restore" data-action="restore-post" data-id="${p.id}">복원</button><button class="permanent" data-action="purge-post" data-id="${p.id}" ${expired(p.deletedAt)?"":"disabled"}>영구 삭제</button></div></article>`).join("")||'<div class="empty">휴지통에 게시글이 없습니다.</div>';
+$("commentList").innerHTML=deletedComments.map(({post:p,comment:c})=>`<article class="item"><div class="meta">게시글: ${esc(p.text||"").slice(0,80)}${(p.text||"").length>80?"…":""}</div><p>${esc(c.text)}</p><div class="meta">삭제일: ${stamp(c.deletedAt)} · ${expired(c.deletedAt)?"30일 경과":"30일 보관 기간"}</div><div class="row"><button class="restore" data-action="restore-comment" data-post="${p.id}" data-id="${c.id}">복원</button><button class="permanent" data-action="purge-comment" data-post="${p.id}" data-id="${c.id}" ${expired(c.deletedAt)?"":"disabled"}>영구 삭제</button></div></article>`).join("")||'<div class="empty">휴지통에 댓글이 없습니다.</div>';
+const total=deletedPosts.length+deletedComments.length;$("restoreAll").disabled=!total;}
+$("back").onclick=()=>location.href="main.html";
+$("restoreAll").onclick=async()=>{if(!confirm("휴지통의 게시글과 댓글을 모두 복원할까요?"))return;try{for(const p of posts){if(p.authorUid===me.uid&&p.deletedAt)await updateDoc(doc(db,"posts",p.id),{deletedAt:null,deletedBy:null,updatedAt:serverTimestamp()});for(const c of commentsByPost.get(p.id)||[]){if(c.authorUid===me.uid&&c.deletedAt)await updateDoc(doc(db,"posts",p.id,"comments",c.id),{deletedAt:null,deletedBy:null,updatedAt:serverTimestamp()})}}say("전체 복원이 완료됐습니다.")}catch(e){say("복원 실패: "+(e.message||e))}};
+document.addEventListener("click",async e=>{const b=e.target.closest("button[data-action]");if(!b)return;const {action,id,post}=b.dataset;try{b.disabled=true;if(action==="restore-post")await updateDoc(doc(db,"posts",id),{deletedAt:null,deletedBy:null,updatedAt:serverTimestamp()});if(action==="restore-comment")await updateDoc(doc(db,"posts",post,"comments",id),{deletedAt:null,deletedBy:null,updatedAt:serverTimestamp()});if(action==="purge-post"){const p=posts.find(x=>x.id===id);if(!p||!expired(p.deletedAt))throw Error("삭제 후 30일이 지나야 영구 삭제할 수 있습니다.");if(!confirm("게시글과 그 안의 댓글을 모두 영구 삭제할까요? 복구할 수 없습니다."))return;await purgePost(p)}if(action==="purge-comment"){const p=posts.find(x=>x.id===post),c=(commentsByPost.get(post)||[]).find(x=>x.id===id);if(!p||!c||!expired(c.deletedAt))throw Error("댓글 삭제 후 30일이 지나야 영구 삭제할 수 있습니다.");if(!confirm("이 댓글을 영구 삭제할까요? 복구할 수 없습니다."))return;await deleteDoc(doc(db,"posts",post,"comments",id))}say("처리가 완료됐습니다.")}catch(err){say("처리 실패: "+(err.message||err))}finally{b.disabled=false}});
+onAuthStateChanged(auth,async u=>{me=u;if(!u){location.href="main.html";return}try{const s=await getDoc(doc(db,"users",u.uid));if(!s.exists())throw Error("계정 정보를 찾을 수 없습니다.");unsubPosts=onSnapshot(collection(db,"posts"),async snap=>{posts=snap.docs.map(d=>({id:d.id,...d.data()}));syncComments();render();await cleanupExpired()},e=>say("불러오기 실패: "+e.message));say("휴지통을 불러왔습니다.")}catch(e){say(e.message||String(e))}});
+</script></body></html>
