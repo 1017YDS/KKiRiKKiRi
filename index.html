@@ -202,8 +202,15 @@ button[data-ice]:disabled{opacity:1;background:#B9E7FF;cursor:not-allowed}
 </div>
 
 <script type="module">
-import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
-import{getAuth,createUserWithEmailAndPassword,signInWithCustomToken,signOut,onAuthStateChanged}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+import{
+getAuth,
+createUserWithEmailAndPassword,
+signInWithCustomToken,
+signOut,
+onAuthStateChanged,
+setPersistence,
+browserLocalPersistence
+}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import{getFirestore,doc,getDoc,updateDoc,deleteDoc,setDoc,collection,addDoc,query,orderBy,onSnapshot,serverTimestamp,runTransaction,getDocs,writeBatch,limit}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 
 const app=initializeApp({
@@ -216,6 +223,8 @@ appId:"1:739393951571:web:7c601229be7c13d1e7b3a6"
 });
 
 const auth=getAuth(app),db=getFirestore(app);
+
+await setPersistence(auth,browserLocalPersistence);
 const WORKER_URL="https://kkirikkiri-auth.hiyds1.workers.dev";
 const $=id=>document.getElementById(id);
 const ID=/^[가-힣A-Za-z][가-힣A-Za-z0-9]{4,9}$/;
