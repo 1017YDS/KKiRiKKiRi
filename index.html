@@ -79,7 +79,7 @@ button:disabled{opacity:.4}button[data-ice]{background:#B9E7FF}button[data-ice]:
 
 
 <section class="card hide" id="searchScreen">
-<h3>검색</h3><div class="row"><input id="search" placeholder="#해시태그 또는 사용자 검색"><button id="searchbtn">검색</button><button id="clearSearch">닫기</button></div>
+<h3>검색</h3><div class="row"><input id="search" placeholder="#해시태그 또는 사용자 검색"><button id="searchbtn">검색</button><button id="clearSearch">전체 글</button></div>
 <div id="searchResults" class="hide"><hr style="border:0;border-top:1px solid #e2e8f0;margin:14px 0"><h3 id="searchResultTitle">검색 결과</h3><div id="searchFeed"></div></div>
 </section>
 
@@ -102,7 +102,7 @@ button:disabled{opacity:.4}button[data-ice]{background:#B9E7FF}button[data-ice]:
 </section>
 
 <section class="card hide" id="mineScreen">
-<h3 id="resultTitle">내 끼리</h3><div id="mineTools" class="hide"><button id="select">선택 삭제</button><button id="delall">전체 삭제</button></div><div id="feed"><p class="muted">내 끼리가 아직 없습니다.</p></div>
+<h3 id="resultTitle">내 끼리</h3><div id="mineTools" class="hide"><button id="select">선택 삭제</button><button id="delall">전체 삭제</button><button id="openTrash" style="background:#bfdbfe">휴지통</button></div><div id="feed"><p class="muted">내 끼리가 아직 없습니다.</p></div>
 </section>
 
 <section class="card hide" id="allScreen"><h3>전체 끼리</h3><div id="allFeed"></div></section>
@@ -241,8 +241,8 @@ function link(s){return esc(s).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" tar
 function millis(v){return v?.toMillis?v.toMillis():0}function time(v){return millis(v)?v.toDate().toLocaleString("ko-KR",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}):"방금"}function editable(v){return millis(v)>0&&Date.now()-millis(v)<3600000}
 async function expireOldIce(){const now=Date.now();for(const p of posts){if(!p.iced||p.perma||p.authorUid!==me?.uid)continue;const start=millis(p.icedAt)||millis(p.updatedAt);if(start&&now-start>=86400000){try{await updateDoc(doc(db,"posts",p.id),{iced:true,perma:true,updatedAt:serverTimestamp()})}catch(e){console.warn("영구 얼음 자동 전환 실패",e)}}}}
 setInterval(()=>{if(me)expireOldIce()},60000);
-function card(p,controls=true){const mine=p.authorUid===me?.uid,cs=comments.get(p.id)||[];return `<div class="post-shell"><section class="post post-paper">${selectMode&&mine?`<input type="checkbox" class="pick" data-id="${p.id}" style="width:auto;margin-right:8px;vertical-align:middle">`:''}<b>${authorLabel(p.authorUid)}</b> <small>${time(p.createdAt)}${p.iced?" · 댓글 얼음":""}${p.perma?" · 영구 얼음":""}</small><div class="text post-content">${renderStyledText(p.text,p.marks||[])}</div><div>${(p.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div></section>${controls?`<div class="post-tools">${mine?`<button data-act="edit" data-id="${p.id}" ${editable(p.createdAt)&&(p.editCount||0)<5?"":"disabled"}>수정 (${p.editCount||0}/5)</button><button data-act="delete" data-id="${p.id}">삭제</button><button data-act="ice" data-id="${p.id}" data-ice ${p.perma?"disabled":""}>${p.perma?"영구 얼음":p.iced?"얼음 해제":"댓글 얼음"}</button>`:""}<button data-act="toggleComments" data-id="${p.id}">댓글 ${cs.length}</button></div><div class="post-comments">${cs.map(c=>`<div class="comment"><b>${authorLabel(c.authorUid)}</b> <small>${time(c.createdAt)}</small><div class="text">${renderStyledText(c.text,c.marks||[])}</div>${c.authorUid===me?.uid?`<button data-act="editc" data-id="${p.id}" data-cid="${c.id}" ${editable(c.createdAt)&&!p.iced&&!p.perma&&(c.editCount||0)<3?"":"disabled"}>수정 (${c.editCount||0}/3)</button><button data-act="delc" data-id="${p.id}" data-cid="${c.id}">삭제</button>`:""}</div>`).join("")}</div>${!p.iced&&!p.perma?`<div class="row post-reply"><button data-act="openComment" data-id="${p.id}">댓글 작성</button></div>`:"<small>댓글이 잠겨 있습니다.</small>"}`:""}</div>`}
-async function renderAll(){if(!me||!profile)return;$("formatToolbar").classList.toggle("hide",!hasP(me.uid));const commentUids=[...comments.values()].flat().map(c=>c.authorUid);const uids=[...new Set([...posts.map(p=>p.authorUid),...commentUids])].filter(uid=>uid&&uid!==me.uid);await Promise.all(uids.map(async uid=>{if(!profiles.has(uid)){try{const s=await getDoc(doc(db,"users",uid));if(s.exists())profiles.set(uid,s.data())}catch{}}}));$("accountInfo").innerHTML=`<b>${esc(profile.nick||profile.id)}</b>${hasP(me.uid)?'&nbsp;<span class="p-badge" title="글씨 꾸미기 권한">P</span>':""}`;const mine=posts.filter(p=>p.authorUid===me.uid);$("feed").innerHTML=mine.map(p=>card(p)).join("")||'<p class="muted">내 끼리가 아직 없습니다. 위에서 끼리를 작성해 보세요.</p>';$("mineTools").classList.toggle("hide",!mine.length);$("allFeed").innerHTML=posts.map(p=>card(p)).join("")||'<p class="muted">아직 끼리가 없습니다.</p>';doSearch()}
+function card(p,controls=true){const mine=p.authorUid===me?.uid,cs=(comments.get(p.id)||[]).filter(c=>!c.deletedAt);return `<div class="post-shell"><section class="post post-paper">${selectMode&&mine?`<input type="checkbox" class="pick" data-id="${p.id}" style="width:auto;margin-right:8px;vertical-align:middle">`:''}<b>${authorLabel(p.authorUid)}</b> <small>${time(p.createdAt)}${p.iced?" · 댓글 얼음":""}${p.perma?" · 영구 얼음":""}</small><div class="text post-content">${renderStyledText(p.text,p.marks||[])}</div><div>${(p.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div></section>${controls?`<div class="post-tools">${mine?`<button data-act="edit" data-id="${p.id}" ${editable(p.createdAt)&&(p.editCount||0)<5?"":"disabled"}>수정 (${p.editCount||0}/5)</button><button data-act="delete" data-id="${p.id}">삭제</button><button data-act="ice" data-id="${p.id}" data-ice ${p.perma?"disabled":""}>${p.perma?"영구 얼음":p.iced?"얼음 해제":"댓글 얼음"}</button>`:""}<button data-act="toggleComments" data-id="${p.id}">댓글 ${cs.length}</button></div><div class="post-comments">${cs.map(c=>`<div class="comment"><b>${authorLabel(c.authorUid)}</b> <small>${time(c.createdAt)}</small><div class="text">${renderStyledText(c.text,c.marks||[])}</div>${c.authorUid===me?.uid?`<button data-act="editc" data-id="${p.id}" data-cid="${c.id}" ${editable(c.createdAt)&&!p.iced&&!p.perma&&(c.editCount||0)<3?"":"disabled"}>수정 (${c.editCount||0}/3)</button><button data-act="delc" data-id="${p.id}" data-cid="${c.id}">삭제</button>`:""}</div>`).join("")}</div>${!p.iced&&!p.perma?`<div class="row post-reply"><button data-act="openComment" data-id="${p.id}">댓글 작성</button></div>`:"<small>댓글이 잠겨 있습니다.</small>"}`:""}</div>`}
+async function renderAll(){if(!me||!profile)return;$("formatToolbar").classList.toggle("hide",!hasP(me.uid));const activePosts=posts.filter(p=>!p.deletedAt);const commentUids=[...comments.values()].flat().filter(c=>!c.deletedAt).map(c=>c.authorUid);const uids=[...new Set([...activePosts.map(p=>p.authorUid),...commentUids])].filter(uid=>uid&&uid!==me.uid);await Promise.all(uids.map(async uid=>{if(!profiles.has(uid)){try{const s=await getDoc(doc(db,"users",uid));if(s.exists())profiles.set(uid,s.data())}catch{}}}));$("accountInfo").innerHTML=`<b>${esc(profile.nick||profile.id)}</b>${hasP(me.uid)?'&nbsp;<span class="p-badge" title="글씨 꾸미기 권한">P</span>`:""}`;const mine=activePosts.filter(p=>p.authorUid===me.uid);$("feed").innerHTML=mine.map(p=>card(p)).join("")||'<p class="muted">내 끼리가 아직 없습니다. 위에서 끼리를 작성해 보세요.</p>';$("mineTools").classList.toggle("hide",!posts.some(p=>p.authorUid===me.uid));$("allFeed").innerHTML=activePosts.map(p=>card(p)).join("")||'<p class="muted">아직 끼리가 없습니다.</p>';doSearch()}
 const syms=[",",".","…","!","?","~",":",";","<",">","-","_","@","#","&","%","/","\\","(",")","*","[","]","{","}","+","−","×","÷","="];
 function calculateExpression(raw){
   const expr=raw.replace(/\s+/g,"").replace(/×/g,"*").replace(/÷/g,"/");
@@ -385,7 +385,7 @@ postArea.addEventListener("input",()=>{if(!$("commentModal").classList.contains(
 $("commentModalCancel").onclick=()=>closeCommentModal(true);
 $("commentModalSave").onclick=async()=>{
   try{
-    const post=posts.find(x=>x.id===commentModalPostId);if(!post)throw Error("게시글을 찾을 수 없습니다.");
+    const post=posts.find(x=>x.id===commentModalPostId);if(!post||post.deletedAt)throw Error("게시글을 찾을 수 없습니다.");
     if(post.iced||post.perma)throw Error("댓글이 잠겨 있습니다.");
     const text=editorText().trim();if(!text||text.length>200)throw Error("댓글은 1~200자여야 합니다.");
     const marks=hasP(me.uid)?collectEditorMarks().filter(m=>m.start>=0&&m.end<=text.length&&m.end>m.start):[];
@@ -404,14 +404,14 @@ $("commentModalSave").onclick=async()=>{
   }catch(e){$("commentModalStatus").textContent=err(e)}
 };
 $("commentModal").addEventListener("click",e=>{if(e.target===$("commentModal"))closeCommentModal(true)});
-$("publish").onclick=async()=>{try{const text=editorText().trim();if(!text||text.length>200)throw Error("글은 1~200자여야 합니다.");const marks=hasP(me.uid)?collectEditorMarks().filter(m=>m.start>=0&&m.end<=text.length&&m.end>m.start):[];const tags=[...new Set([...text.matchAll(/#[가-힣A-Za-z0-9_]+/g)].map(m=>m[0]))];if(editing){const p=posts.find(p=>p.id===editing);if(!p||p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("글 수정은 작성 후 1시간 이내만 가능합니다.");if((p.editCount||0)>=5)throw Error("끼리 수정은 최대 5회까지 가능합니다.");await updateDoc(doc(db,"posts",editing),{text,tags,...(hasP(me.uid)?{marks}:{}),editCount:(text===p.text?(p.editCount||0):(p.editCount||0)+1),updatedAt:serverTimestamp()});editing=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide")}else await addDoc(collection(db,"posts"),{authorUid:me.uid,text,tags,...(hasP(me.uid)&&marks.length?{marks}:{}),createdAt:serverTimestamp(),updatedAt:serverTimestamp(),editCount:0,iced:false,ice:0,perma:false,icedAt:null});postArea.innerHTML="";editingMarks=[];savedRange=null;updateEditorCount();$("postStatus").textContent=""}catch(e){say("postStatus",err(e))}};
+$("publish").onclick=async()=>{try{const text=editorText().trim();if(!text||text.length>200)throw Error("글은 1~200자여야 합니다.");const marks=hasP(me.uid)?collectEditorMarks().filter(m=>m.start>=0&&m.end<=text.length&&m.end>m.start):[];const tags=[...new Set([...text.matchAll(/#[가-힣A-Za-z0-9_]+/g)].map(m=>m[0]))];if(editing){const p=posts.find(p=>p.id===editing);if(!p||p.authorUid!==me.uid||p.deletedAt)throw Error("휴지통에 있는 글은 수정할 수 없습니다.");if(!editable(p.createdAt))throw Error("글 수정은 작성 후 1시간 이내만 가능합니다.");if((p.editCount||0)>=5)throw Error("끼리 수정은 최대 5회까지 가능합니다.");await updateDoc(doc(db,"posts",editing),{text,tags,...(hasP(me.uid)?{marks}:{}),editCount:(text===p.text?(p.editCount||0):(p.editCount||0)+1),updatedAt:serverTimestamp()});editing=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide")}else await addDoc(collection(db,"posts"),{authorUid:me.uid,text,tags,...(hasP(me.uid)&&marks.length?{marks}:{}),createdAt:serverTimestamp(),updatedAt:serverTimestamp(),editCount:0,iced:false,ice:0,perma:false,icedAt:null});postArea.innerHTML="";editingMarks=[];savedRange=null;updateEditorCount();$("postStatus").textContent=""}catch(e){say("postStatus",err(e))}};
 $("cancelEdit").onclick=()=>{editing=null;editingMarks=[];postArea.innerHTML="";savedRange=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide");updateEditorCount()};
 function doSearch(){
   const q=norm($("search").value||"");
-  const found=posts.filter(p=>{
+  const found=posts.filter(p=>!p.deletedAt).filter(p=>{
     const who=profiles.get(p.authorUid)||{};
     const postMatch=`${p.text} ${(p.tags||[]).join(" ")} ${who.id||""} ${who.nick||""}`.toLocaleLowerCase("ko-KR").includes(q);
-    const commentMatch=(comments.get(p.id)||[]).some(c=>{
+    const commentMatch=(comments.get(p.id)||[]).filter(c=>!c.deletedAt).some(c=>{
       const cw=profiles.get(c.authorUid)||{};
       return `${c.text||""} ${cw.id||""} ${cw.nick||""}`.toLocaleLowerCase("ko-KR").includes(q);
     });
@@ -419,7 +419,7 @@ function doSearch(){
   });
   $("searchResults").classList.toggle("hide",!q);
   $("searchFeed").innerHTML=q?(found.map(p=>{
-    const matched=(comments.get(p.id)||[]).filter(c=>{
+    const matched=(comments.get(p.id)||[]).filter(c=>!c.deletedAt).filter(c=>{
       const cw=profiles.get(c.authorUid)||{};
       return `${c.text||""} ${cw.id||""} ${cw.nick||""}`.toLocaleLowerCase("ko-KR").includes(q);
     });
@@ -434,14 +434,17 @@ function resetSearch(){
 resetSearch();
 window.addEventListener("pageshow",resetSearch);
 $("searchbtn").onclick=doSearch;$("search").onkeydown=e=>{if(e.key==="Enter")doSearch()};$("clearSearch").onclick=()=>{$("search").value="";doSearch()};
-$("select").onclick=()=>{selectMode=!selectMode;$("select").textContent=selectMode?"선택 삭제 실행":"선택 삭제";if(selectMode){renderAll();return}const ids=[...document.querySelectorAll(".pick:checked")].map(x=>x.dataset.id);if(ids.length&&confirm(`${ids.length}개 글을 삭제할까요?`))Promise.all(ids.map(id=>{const p=posts.find(p=>p.id===id);return p?.authorUid===me.uid?deleteDoc(doc(db,"posts",id)):Promise.resolve()}));renderAll()};
-$("delall").onclick=async()=>{const mine=posts.filter(p=>p.authorUid===me.uid);if(!mine.length)return alert("삭제할 글이 없습니다.");if(confirm(`내 끼리 ${mine.length}개를 모두 삭제할까요?`))for(const p of mine)await deleteDoc(doc(db,"posts",p.id))};
+async function movePostToTrash(id){const p=posts.find(x=>x.id===id);if(!p||p.authorUid!==me.uid)throw Error("본인 글만 휴지통으로 이동할 수 있습니다.");await updateDoc(doc(db,"posts",id),{deletedAt:serverTimestamp(),deletedBy:me.uid,updatedAt:serverTimestamp()})}
+async function moveCommentToTrash(postId,commentId){const c=(comments.get(postId)||[]).find(x=>x.id===commentId);if(!c||c.authorUid!==me.uid)throw Error("본인 댓글만 휴지통으로 이동할 수 있습니다.");await updateDoc(doc(db,"posts",postId,"comments",commentId),{deletedAt:serverTimestamp(),deletedBy:me.uid,updatedAt:serverTimestamp()})}
+$("openTrash").onclick=()=>{location.href="trash.html"};
+$("select").onclick=async()=>{if(!selectMode){selectMode=true;$("select").textContent="선택 삭제 실행";renderAll();return}const ids=[...document.querySelectorAll(".pick:checked")].map(x=>x.dataset.id);selectMode=false;$("select").textContent="선택 삭제";if(ids.length&&confirm(`선택한 ${ids.length}개 글을 휴지통으로 이동할까요?`)){for(const id of ids)await movePostToTrash(id)}renderAll()};
+$("delall").onclick=async()=>{const mine=posts.filter(p=>p.authorUid===me.uid&&!p.deletedAt);if(!mine.length)return alert("휴지통으로 이동할 글이 없습니다.");if(confirm(`내 끼리 ${mine.length}개를 모두 휴지통으로 이동할까요?`)){for(const p of mine)await movePostToTrash(p.id)}};
 document.addEventListener("click",async e=>{const b=e.target.closest("button[data-act]");if(!b)return;const {act,id,cid}=b.dataset,p=posts.find(p=>p.id===id);if(!p)return;try{
 if(act==="edit"){if(p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("수정 시간이 지났습니다.");if((p.editCount||0)>=5)throw Error("끼리 수정은 최대 5회까지 가능합니다.");editing=id;editingMarks=Array.isArray(p.marks)?p.marks:[];setEditorContent(p.text,p.marks||[]);$("count").textContent=`${p.text.length} / 200자`;$("composeTitle").innerHTML='끼리 수정 <small id="count">'+p.text.length+' / 200자</small>';$("publish").textContent="수정 저장";$("cancelEdit").classList.remove("hide");postArea.focus();$("compose").scrollIntoView({behavior:"smooth"})}
-if(act==="delete"&&p.authorUid===me.uid&&confirm("이 끼리를 삭제할까요?"))await deleteDoc(doc(db,"posts",id));
+if(act==="delete"&&p.authorUid===me.uid&&confirm("이 끼리를 휴지통으로 이동할까요?"))await movePostToTrash(id);
 if(act==="ice"&&p.authorUid===me.uid){if(p.perma)throw Error("이미 영구 얼음 상태입니다.");if(p.iced){await updateDoc(doc(db,"posts",id),{iced:false,icedAt:null,updatedAt:serverTimestamp()})}else{const n=(p.ice||0)+1;await updateDoc(doc(db,"posts",id),{ice:n,iced:true,icedAt:serverTimestamp(),perma:n>=3,updatedAt:serverTimestamp()})}}
 if(act==="openComment"){if(p.iced||p.perma)throw Error("댓글이 잠겨 있습니다.");openCommentModal(id)}
 if(act==="editc"){if(p.iced||p.perma)throw Error("댓글이 얼음 상태라 수정할 수 없습니다. 얼음을 해제한 뒤 다시 시도하세요.");const c=(comments.get(id)||[]).find(c=>c.id===cid);if(!c||c.authorUid!==me.uid)throw Error("본인 댓글만 수정할 수 있습니다.");if(!editable(c.createdAt))throw Error("댓글 수정 시간이 지났습니다.");if((c.editCount||0)>=3)throw Error("댓글 수정은 최대 3회까지 가능합니다.");openCommentModal(id,c)}
-if(act==="delc"){const c=(comments.get(id)||[]).find(c=>c.id===cid);if(!c||c.authorUid!==me.uid)throw Error("본인 댓글만 삭제할 수 있습니다.");if(confirm("댓글을 삭제할까요?"))await deleteDoc(doc(db,"posts",id,"comments",cid))}
+if(act==="delc"){const c=(comments.get(id)||[]).find(c=>c.id===cid);if(!c||c.authorUid!==me.uid)throw Error("본인 댓글만 삭제할 수 있습니다.");if(confirm("댓글을 휴지통으로 이동할까요?"))await moveCommentToTrash(id,cid)}
 }catch(e){alert(err(e))}});
 </script></body></html>
