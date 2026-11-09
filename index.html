@@ -1407,9 +1407,9 @@ updatedAt:serverTimestamp()
 }
 
 /* 휴지통 바로가기 */
-$("openTrash").onclick=()=>{
-location.href="trash.html";
-};
+$("openTrash").addEventListener("click",()=>{
+  location.href="./trash.html";
+});
 
 /* 내 글 선택 삭제 */
 $("select").onclick=async()=>{
