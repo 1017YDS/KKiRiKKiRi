@@ -87,8 +87,6 @@ appId:"1:739393951571:web:7c601229be7c13d1e7b3a6"
 
 const auth=getAuth(app),db=getFirestore(app),$=id=>document.getElementById(id);
 
-await setPersistence(auth,browserLocalPersistence);
-
 const DAY=86400000,KEEP=30*DAY;
 
 let me=null,posts=[],commentsByPost=new Map();
