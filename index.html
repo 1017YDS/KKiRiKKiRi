@@ -34,6 +34,15 @@ button:disabled{opacity:.4}button[data-ice]{background:#B9E7FF}button[data-ice]:
 #postText{min-height:130px;width:100%;border:2px solid var(--ink);border-radius:7px;padding:10px;background:#fff;font:inherit;white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
 #postText:empty:before{content:attr(data-placeholder);color:#94a3b8;pointer-events:none}
 .format-admin-result{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid #ddd}
+#commentModal{position:fixed;inset:0;background:rgba(15,23,42,.58);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px}
+#commentModal.hide{display:none!important}
+.comment-dialog{width:min(620px,100%);max-height:92vh;overflow:auto;background:#fff;border:2px solid var(--ink);border-radius:12px;padding:14px;box-shadow:0 8px 28px rgba(0,0,0,.25)}
+.comment-dialog h3{margin:0 0 10px}
+#commentEditorHost #postText{min-height:150px}
+#commentEditorHost .symbols{margin-top:8px}
+.comment-modal-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:12px}
+.comment-modal-actions button{flex:0 0 auto}
+#commentModalStatus{white-space:pre-wrap;margin-top:8px;color:#b91c1c}
 @media(max-width:480px){.wrap{padding:8px}.card,.post{padding:10px}.symbols{grid-template-columns:repeat(8,1fr)}}
 </style>
 </head>
@@ -78,11 +87,11 @@ button:disabled{opacity:.4}button[data-ice]{background:#B9E7FF}button[data-ice]:
 <h3 id="composeTitle">새 끼리 <small id="count">0 / 200자</small></h3>
 <div id="formatToolbar" class="hide">
 <div class="format-toolbar">
-<button type="button" data-command="bold" title="굵게"><b>굵</b></button>
-<button type="button" data-command="underline" title="밑줄"><u>밑</u></button>
-<button type="button" data-command="italic" title="기울임"><i>기</i></button>
-<button type="button" id="textColorBtn" title="글씨색">글자색 ▾<input id="textColorPicker" type="color" value="#dc2626" aria-label="글씨색 선택"></button>
-<button type="button" id="bgColorBtn" title="배경색">배경색 ▾<input id="bgColorPicker" type="color" value="#fff2a8" aria-label="배경색 선택"></button>
+<button type="button" data-command="bold" title="굵게"><b>B</b></button>
+<button type="button" data-command="italic" title="기울임"><i>I</i></button>
+<button type="button" data-command="underline" title="밑줄"><u>U</u></button>
+<button type="button" id="textColorBtn" title="글씨색">A ▾<input id="textColorPicker" type="color" value="#dc2626" aria-label="글씨색 선택"></button>
+<button type="button" id="bgColorBtn" title="배경색">▰ ▾<input id="bgColorPicker" type="color" value="#fff2a8" aria-label="배경색 선택"></button>
 </div>
 </div>
 <div id="postText" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="끼리를 작성하세요. (최대 200자)"></div>
@@ -98,6 +107,17 @@ button:disabled{opacity:.4}button[data-ice]{background:#B9E7FF}button[data-ice]:
 
 <section class="card hide" id="allScreen"><h3>전체 끼리</h3><div id="allFeed"></div></section>
 </main>
+<div id="commentModal" class="hide" role="dialog" aria-modal="true" aria-labelledby="commentModalTitle">
+  <div class="comment-dialog">
+    <h3 id="commentModalTitle">댓글 작성 <small id="commentCount">0 / 200자</small></h3>
+    <div id="commentEditorHost"></div>
+    <div class="comment-modal-actions">
+      <button type="button" id="commentModalCancel">취소</button>
+      <button type="button" id="commentModalSave">댓글 등록</button>
+    </div>
+    <p id="commentModalStatus"></p>
+  </div>
+</div>
 
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
@@ -107,6 +127,7 @@ const app=initializeApp({apiKey:"AIzaSyBiV_4mm2TbcC4bJsLkJpcXiUztZGFYBL0",authDo
 const auth=getAuth(app),db=getFirestore(app),WORKER_URL="https://kkirikkiri-auth.hiyds1.workers.dev",$=id=>document.getElementById(id);
 const ID=/^[가-힣A-Za-z][가-힣A-Za-z0-9]{4,9}$/,NICK=/^[가-힣A-Za-z\u00C0-\u024F\u1E00-\u1EFF]{3,5}$/u;
 let mode="login",me=null,profile=null,posts=[],unsubPosts=null,unsubComments=new Map(),comments=new Map(),editing=null,selectMode=false,profiles=new Map(),formatUids=new Set(),unsubPermissions=null,editingMarks=[],savedSelection={start:0,end:0};
+let commentModalPostId=null,commentModalId=null,commentDraftHTML="",commentDraftRange=null,commentSlots=null;
 const CREATOR_UID="2JOdaL1pWBSNjJFdFnNnKJUkhyk1";
 const norm=s=>s.trim().toLocaleLowerCase("ko-KR"),say=(id,s)=>{$(id).textContent=s;$(id).classList.remove("hide")};
 function err(e){const m={"auth/email-already-in-use":"이미 가입된 이메일입니다.","auth/invalid-email":"이메일 형식을 확인하세요.","auth/weak-password":"비밀번호를 더 길게 설정하세요.","auth/invalid-credential":"아이디 또는 비밀번호를 확인하세요.","auth/too-many-requests":"인증 요청이 일시 제한됐습니다. 잠시 기다린 뒤 다시 시도하세요.","permission-denied":"Firestore 보안 규칙을 확인하세요.","functions/not-found":"아이디 로그인 서버 기능을 배포해야 합니다.","functions/unauthenticated":"아이디 또는 비밀번호를 확인하세요.","functions/invalid-argument":"아이디 형식을 확인하세요."};return m[e.code]||e.message||"오류가 발생했습니다."}
@@ -220,7 +241,7 @@ function link(s){return esc(s).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" tar
 function millis(v){return v?.toMillis?v.toMillis():0}function time(v){return millis(v)?v.toDate().toLocaleString("ko-KR",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}):"방금"}function editable(v){return millis(v)>0&&Date.now()-millis(v)<3600000}
 async function expireOldIce(){const now=Date.now();for(const p of posts){if(!p.iced||p.perma||p.authorUid!==me?.uid)continue;const start=millis(p.icedAt)||millis(p.updatedAt);if(start&&now-start>=86400000){try{await updateDoc(doc(db,"posts",p.id),{iced:true,perma:true,updatedAt:serverTimestamp()})}catch(e){console.warn("영구 얼음 자동 전환 실패",e)}}}}
 setInterval(()=>{if(me)expireOldIce()},60000);
-function card(p,controls=true){const mine=p.authorUid===me?.uid,cs=comments.get(p.id)||[];return `<div class="post-shell"><section class="post post-paper">${selectMode&&mine?`<input type="checkbox" class="pick" data-id="${p.id}" style="width:auto;margin-right:8px;vertical-align:middle">`:''}<b>${authorLabel(p.authorUid)}</b> <small>${time(p.createdAt)}${p.iced?" · 댓글 얼음":""}${p.perma?" · 영구 얼음":""}</small><div class="text post-content">${renderStyledText(p.text,p.marks||[])}</div><div>${(p.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div></section>${controls?`<div class="post-tools">${mine?`<button data-act="edit" data-id="${p.id}" ${editable(p.createdAt)&&(p.editCount||0)<5?"":"disabled"}>수정 (${p.editCount||0}/5)</button><button data-act="delete" data-id="${p.id}">삭제</button><button data-act="ice" data-id="${p.id}" data-ice ${p.perma?"disabled":""}>${p.perma?"영구 얼음":p.iced?"얼음 해제":"댓글 얼음"}</button>`:""}<button data-act="toggleComments" data-id="${p.id}">댓글 ${cs.length}</button></div><div class="post-comments">${cs.map(c=>`<div class="comment"><b>${authorLabel(c.authorUid)}</b> <small>${time(c.createdAt)}</small><div class="text">${link(c.text)}</div>${c.authorUid===me?.uid?`<button data-act="editc" data-id="${p.id}" data-cid="${c.id}" ${editable(c.createdAt)&&!p.iced&&!p.perma&&(c.editCount||0)<3?"":"disabled"}>수정 (${c.editCount||0}/3)</button><button data-act="delc" data-id="${p.id}" data-cid="${c.id}">삭제</button>`:""}</div>`).join("")}</div>${!p.iced&&!p.perma?`<div class="row post-reply"><textarea maxlength="200" rows="2" placeholder="댓글 작성" data-input="${p.id}" style="resize:vertical"></textarea><button data-act="comment" data-id="${p.id}">등록</button></div>`:"<small>댓글이 잠겨 있습니다.</small>"}`:""}</div>`}
+function card(p,controls=true){const mine=p.authorUid===me?.uid,cs=comments.get(p.id)||[];return `<div class="post-shell"><section class="post post-paper">${selectMode&&mine?`<input type="checkbox" class="pick" data-id="${p.id}" style="width:auto;margin-right:8px;vertical-align:middle">`:''}<b>${authorLabel(p.authorUid)}</b> <small>${time(p.createdAt)}${p.iced?" · 댓글 얼음":""}${p.perma?" · 영구 얼음":""}</small><div class="text post-content">${renderStyledText(p.text,p.marks||[])}</div><div>${(p.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div></section>${controls?`<div class="post-tools">${mine?`<button data-act="edit" data-id="${p.id}" ${editable(p.createdAt)&&(p.editCount||0)<5?"":"disabled"}>수정 (${p.editCount||0}/5)</button><button data-act="delete" data-id="${p.id}">삭제</button><button data-act="ice" data-id="${p.id}" data-ice ${p.perma?"disabled":""}>${p.perma?"영구 얼음":p.iced?"얼음 해제":"댓글 얼음"}</button>`:""}<button data-act="toggleComments" data-id="${p.id}">댓글 ${cs.length}</button></div><div class="post-comments">${cs.map(c=>`<div class="comment"><b>${authorLabel(c.authorUid)}</b> <small>${time(c.createdAt)}</small><div class="text">${renderStyledText(c.text,c.marks||[])}</div>${c.authorUid===me?.uid?`<button data-act="editc" data-id="${p.id}" data-cid="${c.id}" ${editable(c.createdAt)&&!p.iced&&!p.perma&&(c.editCount||0)<3?"":"disabled"}>수정 (${c.editCount||0}/3)</button><button data-act="delc" data-id="${p.id}" data-cid="${c.id}">삭제</button>`:""}</div>`).join("")}</div>${!p.iced&&!p.perma?`<div class="row post-reply"><button data-act="openComment" data-id="${p.id}">댓글 작성</button></div>`:"<small>댓글이 잠겨 있습니다.</small>"}`:""}</div>`}
 async function renderAll(){if(!me||!profile)return;$("formatToolbar").classList.toggle("hide",!hasP(me.uid));const commentUids=[...comments.values()].flat().map(c=>c.authorUid);const uids=[...new Set([...posts.map(p=>p.authorUid),...commentUids])].filter(uid=>uid&&uid!==me.uid);await Promise.all(uids.map(async uid=>{if(!profiles.has(uid)){try{const s=await getDoc(doc(db,"users",uid));if(s.exists())profiles.set(uid,s.data())}catch{}}}));$("accountInfo").innerHTML=`<b>${esc(profile.nick||profile.id)}</b>${hasP(me.uid)?'&nbsp;<span class="p-badge" title="글씨 꾸미기 권한">P</span>':""}`;const mine=posts.filter(p=>p.authorUid===me.uid);$("feed").innerHTML=mine.map(p=>card(p)).join("")||'<p class="muted">내 끼리가 아직 없습니다. 위에서 끼리를 작성해 보세요.</p>';$("mineTools").classList.toggle("hide",!mine.length);$("allFeed").innerHTML=posts.map(p=>card(p)).join("")||'<p class="muted">아직 끼리가 없습니다.</p>';doSearch()}
 const syms=[",",".","…","!","?","~",":",";","<",">","-","_","@","#","&","%","/","\\","(",")","*","[","]","{","}","+","−","×","÷","="];
 function calculateExpression(raw){
@@ -328,6 +349,61 @@ $("bgColorPicker").oninput=()=>applyPickerColor("bgColorPicker","hiliteColor");
 function enterHexColor(id,command,label){if(!selectedEditorRange()){say("postStatus","색을 바꿀 글자를 먼저 드래그해서 선택해 주세요.");return}const raw=prompt(`${label} HEX 색상 코드를 입력하세요. 예: #FF0000`,$(id).value.toUpperCase());if(raw===null)return;const value=raw.trim();if(!/^#[0-9a-fA-F]{6}$/.test(value)){alert("#을 포함한 6자리 색상 코드로 입력하세요.");return}$(id).value=value;applyPickerColor(id,command)}
 $("textColorBtn").ondblclick=()=>enterHexColor("textColorPicker","foreColor","글씨색");
 $("bgColorBtn").ondblclick=()=>enterHexColor("bgColorPicker","hiliteColor","배경색");
+function openCommentModal(postId,comment=null){
+  if(commentSlots)closeCommentModal(false);
+  commentModalPostId=postId;commentModalId=comment?.id||null;
+  // 메인 글 작성 중인 내용은 잠시 보관하고, 기존 편집기를 팝업으로 옮겨 재사용한다.
+  commentDraftHTML=postArea.innerHTML;commentDraftRange=savedRange?savedRange.cloneRange():null;
+  const host=$("commentEditorHost");
+  commentSlots={toolbar:document.createComment("toolbar"),editor:document.createComment("editor"),symbols:document.createComment("symbols")};
+  $("formatToolbar").parentNode.insertBefore(commentSlots.toolbar,$("formatToolbar"));
+  postArea.parentNode.insertBefore(commentSlots.editor,postArea);
+  $("symbols").parentNode.insertBefore(commentSlots.symbols,$("symbols"));
+  host.append($("formatToolbar"),postArea,$("symbols"));
+  setEditorContent(comment?.text||"",comment?.marks||[]);
+  $("commentCount").textContent=`${(comment?.text||"").length} / 200자`;
+  $("commentModalTitle").firstChild.textContent=comment?"댓글 수정 ":"댓글 작성 ";
+  $("commentModalSave").textContent=comment?"수정 저장":"댓글 등록";
+  $("commentModalStatus").textContent="";
+  $("commentModal").classList.remove("hide");
+  $("formatToolbar").classList.toggle("hide",!hasP(me.uid));
+  postArea.focus();
+}
+function closeCommentModal(restoreDraft=true){
+  if(!commentSlots)return;
+  const [toolbarSlot,editorSlot,symbolsSlot]=[commentSlots.toolbar,commentSlots.editor,commentSlots.symbols];
+  toolbarSlot.parentNode.insertBefore($("formatToolbar"),toolbarSlot);toolbarSlot.remove();
+  editorSlot.parentNode.insertBefore(postArea,editorSlot);editorSlot.remove();
+  symbolsSlot.parentNode.insertBefore($("symbols"),symbolsSlot);symbolsSlot.remove();
+  if(restoreDraft){postArea.innerHTML=commentDraftHTML;savedRange=commentDraftRange;updateEditorCount()}
+  else{postArea.innerHTML="";savedRange=null;updateEditorCount()}
+  commentSlots=null;commentModalPostId=null;commentModalId=null;
+  $("commentModal").classList.add("hide");$("commentModalStatus").textContent="";
+  $("formatToolbar").classList.toggle("hide",!hasP(me?.uid));
+}
+postArea.addEventListener("input",()=>{if(!$("commentModal").classList.contains("hide"))$("commentCount").textContent=`${editorText().length} / 200자`});
+$("commentModalCancel").onclick=()=>closeCommentModal(true);
+$("commentModalSave").onclick=async()=>{
+  try{
+    const post=posts.find(x=>x.id===commentModalPostId);if(!post)throw Error("게시글을 찾을 수 없습니다.");
+    if(post.iced||post.perma)throw Error("댓글이 잠겨 있습니다.");
+    const text=editorText().trim();if(!text||text.length>200)throw Error("댓글은 1~200자여야 합니다.");
+    const marks=hasP(me.uid)?collectEditorMarks().filter(m=>m.start>=0&&m.end<=text.length&&m.end>m.start):[];
+    if(commentModalId){
+      const c=(comments.get(post.id)||[]).find(x=>x.id===commentModalId);
+      if(!c||c.authorUid!==me.uid)throw Error("본인 댓글만 수정할 수 있습니다.");
+      if(!editable(c.createdAt))throw Error("댓글 수정 시간이 지났습니다.");
+      if((c.editCount||0)>=3)throw Error("댓글 수정은 최대 3회까지 가능합니다.");
+      await updateDoc(doc(db,"posts",post.id,"comments",commentModalId),{text,...(hasP(me.uid)?{marks}:{}),editCount:(c.editCount||0)+1,updatedAt:serverTimestamp()});
+    }else{
+      const latestSnap=await getDocs(query(collection(db,"posts",post.id,"comments"),orderBy("createdAt","desc"),limit(1)));
+      const latest=latestSnap.docs[0]?.data();if(latest?.authorUid===me.uid)throw Error("다른 사람이 댓글을 단 뒤에 다시 댓글을 작성할 수 있습니다.");
+      await addDoc(collection(db,"posts",post.id,"comments"),{authorUid:me.uid,text,...(hasP(me.uid)&&marks.length?{marks}:{}),createdAt:serverTimestamp(),updatedAt:serverTimestamp(),editCount:0});
+    }
+    closeCommentModal(true);
+  }catch(e){$("commentModalStatus").textContent=err(e)}
+};
+$("commentModal").addEventListener("click",e=>{if(e.target===$("commentModal"))closeCommentModal(true)});
 $("publish").onclick=async()=>{try{const text=editorText().trim();if(!text||text.length>200)throw Error("글은 1~200자여야 합니다.");const marks=hasP(me.uid)?collectEditorMarks().filter(m=>m.start>=0&&m.end<=text.length&&m.end>m.start):[];const tags=[...new Set([...text.matchAll(/#[가-힣A-Za-z0-9_]+/g)].map(m=>m[0]))];if(editing){const p=posts.find(p=>p.id===editing);if(!p||p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("글 수정은 작성 후 1시간 이내만 가능합니다.");if((p.editCount||0)>=5)throw Error("끼리 수정은 최대 5회까지 가능합니다.");await updateDoc(doc(db,"posts",editing),{text,tags,...(hasP(me.uid)?{marks}:{}),editCount:(text===p.text?(p.editCount||0):(p.editCount||0)+1),updatedAt:serverTimestamp()});editing=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide")}else await addDoc(collection(db,"posts"),{authorUid:me.uid,text,tags,...(hasP(me.uid)&&marks.length?{marks}:{}),createdAt:serverTimestamp(),updatedAt:serverTimestamp(),editCount:0,iced:false,ice:0,perma:false,icedAt:null});postArea.innerHTML="";editingMarks=[];savedRange=null;updateEditorCount();$("postStatus").textContent=""}catch(e){say("postStatus",err(e))}};
 $("cancelEdit").onclick=()=>{editing=null;editingMarks=[];postArea.innerHTML="";savedRange=null;$("composeTitle").innerHTML='새 끼리 <small id="count">0 / 200자</small>';$("publish").textContent="끼리 올리기";$("cancelEdit").classList.add("hide");updateEditorCount()};
 function doSearch(){
@@ -364,8 +440,8 @@ document.addEventListener("click",async e=>{const b=e.target.closest("button[dat
 if(act==="edit"){if(p.authorUid!==me.uid)throw Error("본인 글만 수정할 수 있습니다.");if(!editable(p.createdAt))throw Error("수정 시간이 지났습니다.");if((p.editCount||0)>=5)throw Error("끼리 수정은 최대 5회까지 가능합니다.");editing=id;editingMarks=Array.isArray(p.marks)?p.marks:[];setEditorContent(p.text,p.marks||[]);$("count").textContent=`${p.text.length} / 200자`;$("composeTitle").innerHTML='끼리 수정 <small id="count">'+p.text.length+' / 200자</small>';$("publish").textContent="수정 저장";$("cancelEdit").classList.remove("hide");postArea.focus();$("compose").scrollIntoView({behavior:"smooth"})}
 if(act==="delete"&&p.authorUid===me.uid&&confirm("이 끼리를 삭제할까요?"))await deleteDoc(doc(db,"posts",id));
 if(act==="ice"&&p.authorUid===me.uid){if(p.perma)throw Error("이미 영구 얼음 상태입니다.");if(p.iced){await updateDoc(doc(db,"posts",id),{iced:false,icedAt:null,updatedAt:serverTimestamp()})}else{const n=(p.ice||0)+1;await updateDoc(doc(db,"posts",id),{ice:n,iced:true,icedAt:serverTimestamp(),perma:n>=3,updatedAt:serverTimestamp()})}}
-if(act==="comment"){if(p.iced||p.perma)throw Error("댓글이 잠겨 있습니다.");const input=b.closest(".post-shell")?.querySelector(`[data-input="${id}"]`),text=input?.value.trim();if(!text||text.length>200)throw Error("댓글은 1~200자여야 합니다.");const latestSnap=await getDocs(query(collection(db,"posts",id,"comments"),orderBy("createdAt","desc"),limit(1)));const latest=latestSnap.docs[0]?.data();if(latest?.authorUid===me.uid)throw Error("다른 사람이 댓글을 단 뒤에 다시 댓글을 작성할 수 있습니다.");await addDoc(collection(db,"posts",id,"comments"),{authorUid:me.uid,text,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),editCount:0});input.value=""}
-if(act==="editc"){if(p.iced||p.perma)throw Error("댓글이 얼음 상태라 수정할 수 없습니다. 얼음을 해제한 뒤 다시 시도하세요.");const c=(comments.get(id)||[]).find(c=>c.id===cid);if(!c||c.authorUid!==me.uid)throw Error("본인 댓글만 수정할 수 있습니다.");if(!editable(c.createdAt))throw Error("댓글 수정 시간이 지났습니다.");if((c.editCount||0)>=3)throw Error("댓글 수정은 최대 3회까지 가능합니다.");const text=prompt(`댓글 수정 (${c.editCount||0}/3회 사용)`,c.text);if(text===null)return;if(!text.trim()||text.trim().length>200)throw Error("댓글은 1~200자여야 합니다.");await updateDoc(doc(db,"posts",id,"comments",cid),{text:text.trim(),editCount:(c.editCount||0)+1,updatedAt:serverTimestamp()})}
+if(act==="openComment"){if(p.iced||p.perma)throw Error("댓글이 잠겨 있습니다.");openCommentModal(id)}
+if(act==="editc"){if(p.iced||p.perma)throw Error("댓글이 얼음 상태라 수정할 수 없습니다. 얼음을 해제한 뒤 다시 시도하세요.");const c=(comments.get(id)||[]).find(c=>c.id===cid);if(!c||c.authorUid!==me.uid)throw Error("본인 댓글만 수정할 수 있습니다.");if(!editable(c.createdAt))throw Error("댓글 수정 시간이 지났습니다.");if((c.editCount||0)>=3)throw Error("댓글 수정은 최대 3회까지 가능합니다.");openCommentModal(id,c)}
 if(act==="delc"){const c=(comments.get(id)||[]).find(c=>c.id===cid);if(!c||c.authorUid!==me.uid)throw Error("본인 댓글만 삭제할 수 있습니다.");if(confirm("댓글을 삭제할까요?"))await deleteDoc(doc(db,"posts",id,"comments",cid))}
 }catch(e){alert(err(e))}});
 </script></body></html>
