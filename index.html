@@ -321,6 +321,7 @@ if(!response.ok)throw Error(data.error||"로그인에 실패했습니다. 아이
 if(!data.customToken)throw Error("로그인 응답을 확인할 수 없습니다. 잠시 후 다시 시도하세요.");
 
 await signInWithCustomToken(auth,data.customToken);
+  console.log("메인 로그인 UID:",auth.currentUser?.uid);
 return;
 }
 
@@ -1427,6 +1428,7 @@ updatedAt:serverTimestamp()
 
 /* 휴지통 바로가기 */
 $("openTrash").addEventListener("click",()=>{
+  console.log("휴지통 이동 전 UID:",auth.currentUser?.uid);
   location.href="./trash.html";
 });
 
