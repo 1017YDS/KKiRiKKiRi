@@ -246,13 +246,15 @@ setInterval(()=>{if(me)expireOldIce()},60000);
 function card(p,controls=true){
   const mine=p.authorUid===me?.uid,cs=(comments.get(p.id)||[]).filter(c=>!c.deletedAt);
   const number=postNumbers.get(p.id)||"-";
+  const locked=p.iced||p.perma;
+
   return `<div class="post-shell"><section class="post post-paper">
     <div class="post-number">${number}</div>
     <div class="post-author-line">${selectMode&&mine?`<input type="checkbox" class="pick" data-id="${p.id}" aria-label="게시글 선택">`:''}<b>${authorLabel(p.authorUid)}</b></div>
     <small class="post-date">${time(p.createdAt)}${p.iced?" · 댓글 얼음":""}${p.perma?" · 영구 얼음":""}</small>
     <div class="text post-content">${renderStyledText(p.text,p.marks||[])}</div>
     <div>${(p.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>
-  </section>${controls?`${mine?`<div class="post-tools"><button data-act="edit" data-id="${p.id}" ${editable(p.createdAt)&&(p.editCount||0)<5?"":"disabled"}>수정 (${p.editCount||0}/5)</button><button data-act="ice" data-id="${p.id}" data-ice ${p.perma?"disabled":""}>${p.perma?"영구 얼음":p.iced?"얼음 해제":"댓글 얼음"}</button><button data-act="delete" data-id="${p.id}">삭제</button></div>`:""}<div class="post-comments">${cs.map(c=>`<div class="comment"><b>${authorLabel(c.authorUid)}</b> <small>${time(c.createdAt)}</small><div class="text">${renderStyledText(c.text,c.marks||[])}</div>${c.authorUid===me?.uid?`<button data-act="editc" data-id="${p.id}" data-cid="${c.id}" ${editable(c.createdAt)&&!p.iced&&!p.perma&&(c.editCount||0)<3?"":"disabled"}>수정 (${c.editCount||0}/3)</button><button data-act="delc" data-id="${p.id}" data-cid="${c.id}">삭제</button>`:""}</div>`).join("")}${p.iced||p.perma?'<small>댓글이 잠겨 있습니다.</small>':`<div class="post-reply"><button data-act="openComment" data-id="${p.id}">댓글 ${cs.length}</button></div>`}</div>`:""}</div>`
+  </section>${controls?`<div class="post-tools"><button data-act="openComment" data-id="${p.id}" ${locked?"disabled":""}>댓글 ${cs.length}</button>${mine?`<button data-act="edit" data-id="${p.id}" ${editable(p.createdAt)&&(p.editCount||0)<5?"":"disabled"}>수정 (${p.editCount||0}/5)</button><button data-act="ice" data-id="${p.id}" data-ice ${p.perma?"disabled":""}>${p.perma?"영구 얼음":p.iced?"얼음 해제":"댓글 얼음"}</button><button data-act="delete" data-id="${p.id}">삭제</button>`:""}</div><div class="post-comments">${cs.map(c=>`<div class="comment"><b>${authorLabel(c.authorUid)}</b> <small>${time(c.createdAt)}</small><div class="text">${renderStyledText(c.text,c.marks||[])}</div>${c.authorUid===me?.uid?`<button data-act="editc" data-id="${p.id}" data-cid="${c.id}" ${editable(c.createdAt)&&!locked&&(c.editCount||0)<3?"":"disabled"}>수정 (${c.editCount||0}/3)</button><button data-act="delc" data-id="${p.id}" data-cid="${c.id}">삭제</button>`:""}</div>`).join("")}${cs.length?`<div class="post-reply"><button data-act="openComment" data-id="${p.id}" ${locked?"disabled":""}>댓글</button></div>`:""}${locked?'<small>댓글이 잠겨 있습니다.</small>':""}</div>`:""}</div>`
 }
 async function renderAll(){if(!me||!profile)return;$("formatToolbar").classList.toggle("hide",!hasP(me.uid));const activePosts=posts.filter(p=>!p.deletedAt);
   postNumbers=new Map();
